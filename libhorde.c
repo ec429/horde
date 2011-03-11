@@ -81,7 +81,43 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value)
 	return(0);
 }
 
-char *str_from_hmsg(const hmsg h);
+char *str_from_hmsg(const hmsg h)
+{
+	if(!h) return(strdup("(nil)"));
+	char *rv; unsigned int l,i;
+	init_char(&rv, &l, &i);
+	append_char(&rv, &l, &i, '(');
+	append_str(&rv, &l, &i, h->funct?h->funct:"(nil)");
+	unsigned int p;
+	for(p=0;p<h->nparms;p++)
+	{
+		append_char(&rv, &l, &i, ' ');
+		append_char(&rv, &l, &i, '(');
+		append_str(&rv, &l, &i, h->p_tag&&h->p_tag[p]?h->p_tag[p]:"(nil)");
+		if(h->p_value&&h->p_value[p])
+		{
+			char *val=hex_encode(h->p_value[p], strlen(h->p_value[p]));
+			if(val)
+			{
+				append_char(&rv, &l, &i, ' ');
+				append_str(&rv, &l, &i, val);
+			}
+		}
+		append_char(&rv, &l, &i, ')');
+	}
+	if(h->data)
+	{
+		char *val=hex_encode(h->data, strlen(h->data));
+		if(val)
+		{
+			append_char(&rv, &l, &i, ' ');
+			append_str(&rv, &l, &i, val);
+		}
+	}
+	append_char(&rv, &l, &i, ')');
+	return(rv);
+}
+
 hmsg hmsg_from_str(const char *str);
 
 void free_hmsg(hmsg h)
