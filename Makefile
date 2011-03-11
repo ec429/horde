@@ -10,5 +10,7 @@ horde: horde.c libhorde.o libhorde.h bits.o bits.h
 net: net.c libhorde.o libhorde.h bits.o bits.h
 	$(CC) $(CFLAGS) -o $@ net.c libhorde.o bits.o
 
+libhorde.o: libhorde.c libhorde.h bits.h
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -o $@ -c $<

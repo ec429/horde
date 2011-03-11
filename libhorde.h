@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <ctype.h>
+
+#include "bits.h"
 
 typedef struct
 {
@@ -22,8 +25,8 @@ typedef struct
 }
 *hmsg;
 
-void hex_encode(char **buf, const char *src, size_t srclen);
-void hex_decode(char **buf, const char *src, size_t srclen);
+char *hex_encode(const char *src, size_t srclen);
+char *hex_decode(const char *src, size_t srclen);
 
 hmsg new_hmsg(const char *funct, const char *data);
 int add_htag(hmsg h, const char *p_tag, const char *p_value);

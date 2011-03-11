@@ -9,8 +9,41 @@
 */
 #include "libhorde.h"
 
-void hex_encode(char **buf, const char *src, size_t srclen);
-void hex_decode(char **buf, const char *src, size_t srclen);
+char *hex_encode(const char *src, size_t srclen)
+{
+	if(!src||!srclen)
+		return(NULL);
+	char *rv;unsigned int l,i;
+	init_char(&rv, &l, &i);
+	unsigned int p;
+	for(p=0;p<srclen;p++)
+	{
+		unsigned char c=src[p];
+		char hex[3];
+		snprintf(hex, 3, "%02x", c);
+		append_str(&rv, &l, &i, hex);
+	}
+	return(rv);
+}
+
+char *hex_decode(const char *src, size_t srclen)
+{
+	if(!src||!srclen||(srclen&1))
+		return(NULL);
+	char *rv;unsigned int l,i;
+	init_char(&rv, &l, &i);
+	unsigned int p;
+	for(p=0;p<srclen;p+=2)
+	{
+		unsigned int c;
+		const char hex[3]={src[p], src[p+1], 0};
+		if(!isxdigit(hex[0])) return(rv);
+		if(!isxdigit(hex[1])) return(rv);
+		sscanf(hex, "%02x", &c);
+		append_char(&rv, &l, &i, (unsigned char)c);
+	}
+	return(rv);
+}
 
 hmsg new_hmsg(const char *funct, const char *data)
 {
