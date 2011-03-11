@@ -230,6 +230,9 @@ int main(int argc, char **argv)
 						break;
 						case NONE:
 							fprintf(stderr, "horde: data from worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
+							char *buf=getl(workers[w].pipe[0]);
+							fprintf(stderr, "horde: < '%s'\n", buf);
+							free(buf);
 						break;
 					}
 				}

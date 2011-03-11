@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #define max(a,b) ((a)>(b)?(a):(b))
 #define min(a,b) ((a)<(b)?(a):(b))
@@ -11,6 +12,7 @@ typedef uint32_t uchar_t;
 
 char * fgetl(FILE *); // gets a line of string data; returns a malloc-like pointer
 char * slurp(FILE *); // reads an entire file up to EOF; returns a malloc-like pointer
+char * getl(int fd); // like fgetl but with a file descriptor instead of a handle
 void init_char(char **buf, unsigned int *l, unsigned int *i); // initialises a string buffer in heap.  *buf becomes a malloc-like pointer
 void append_char(char **buf, unsigned int *l, unsigned int *i, char c); // adds a character to a string buffer in heap (and realloc()s if needed)
 void append_str(char **buf, unsigned int *l, unsigned int *i, const char *s); // adds a string to a string buffer in heap (and realloc()s if needed)

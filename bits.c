@@ -19,6 +19,21 @@ char * fgetl(FILE *fp)
 	return(lout);
 }
 
+char * getl(int fd)
+{
+	char * lout;
+	unsigned int l,i;
+	init_char(&lout, &l, &i);
+	unsigned char c;
+	while(read(fd, &c, 1)==1)
+	{
+		if(c=='\n')
+			break;
+		append_char(&lout, &l, &i, c);
+	}
+	return(lout);
+}
+
 char * slurp(FILE *fp)
 {
 	char * lout;
