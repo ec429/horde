@@ -33,3 +33,5 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str);
 void free_hmsg(hmsg h);
+
+void hfin(unsigned char status);

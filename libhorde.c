@@ -100,6 +100,7 @@ char *str_from_hmsg(const hmsg h)
 			if(val)
 			{
 				append_char(&rv, &l, &i, ' ');
+				append_char(&rv, &l, &i, '#');
 				append_str(&rv, &l, &i, val);
 			}
 		}
@@ -111,6 +112,7 @@ char *str_from_hmsg(const hmsg h)
 		if(val)
 		{
 			append_char(&rv, &l, &i, ' ');
+			append_char(&rv, &l, &i, '#');
 			append_str(&rv, &l, &i, val);
 		}
 	}
@@ -134,4 +136,19 @@ void free_hmsg(hmsg h)
 	if(h->funct) free(h->funct);
 	if(h->data) free(h->data);
 	free(h);
+}
+
+void hfin(unsigned char status)
+{
+	char st[4];
+	snprintf(st, 4, "%hhu", status);
+	hmsg fin=new_hmsg("fin", st);
+	if(!fin) return;
+	char *str=str_from_hmsg(fin);
+	if(str)
+	{
+		printf("%s\n", str);
+		free(str);
+	}
+	free_hmsg(fin);
 }

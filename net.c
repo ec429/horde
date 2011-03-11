@@ -23,12 +23,12 @@ int main(int argc, char **argv)
 	{
 		fprintf(stderr, "%s[%d]: ", name, getpid());
 		perror("accept");
-		printf("(fin %d)\n", EXIT_FAILURE);
+		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
 	fprintf(stderr, "%s[%d]: accepted\n", name, getpid());
 	fprintf(stderr, "%s[%d]: closing conn\n", name, getpid());
 	close(newhandle);
-	printf("(fin %d)\n", EXIT_SUCCESS);
+	hfin(EXIT_SUCCESS);
 	return(EXIT_SUCCESS);
 }
