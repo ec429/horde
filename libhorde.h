@@ -9,6 +9,7 @@
 	libhorde: provides routines for module communication
 */
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 
 typedef struct
@@ -25,7 +26,7 @@ void hex_encode(char **buf, const char *src, size_t srclen);
 void hex_decode(char **buf, const char *src, size_t srclen);
 
 hmsg new_hmsg(const char *funct, const char *data);
-void add_htag(hmsg h, const char *p_tag, const char *p_value);
+int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str);
 void free_hmsg(hmsg h);
