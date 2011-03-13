@@ -11,7 +11,7 @@ disp fork() exec(stats)
 C>disp connect
 disp accept()
 disp fork() exec(net)
-C>net: HTTP GET /
+C>net: GET / HTTP/1.0
 net>disp: (path {/})
 disp>path: (path (from net) {/})
 path>disp: (path (to net) {/index.html})

@@ -146,11 +146,11 @@ hmsg hmsg_from_str(const char *str)
 						break;
 					}
 					state=2;
-					ff=strndup(funct, p-funct-1);
+					ff=strndup(funct, p-funct);
 				}
 				else if((*p=='(')||(*p==')')) // bad paren
 				{
-					fprintf(stderr, "hmsg_from_str: bad paren in input\n\t%s\n", str);
+					fprintf(stderr, "hmsg_from_str: bad paren in funct\n\t%s\n", str);
 					state=1024;
 					break;
 				}
@@ -172,7 +172,7 @@ hmsg hmsg_from_str(const char *str)
 					}
 					else
 					{
-						state=4;
+						state=4;p--;
 					}
 				}
 			break;
@@ -180,7 +180,7 @@ hmsg hmsg_from_str(const char *str)
 				switch(*p)
 				{
 					case '(':
-						fprintf(stderr, "hmsg_from_str: bad paren in input\n\t%s\n", str);
+						fprintf(stderr, "hmsg_from_str: bad paren in data\n\t%s\n", str);
 						state=1024;
 						break;
 					break;
@@ -203,7 +203,7 @@ hmsg hmsg_from_str(const char *str)
 			case 5:
 				if(*p==')')
 				{
-					rv->data=hex_decode(curr, p-curr-1);
+					rv->data=hex_decode(curr, p-curr);
 					return(rv);
 				}
 			break;

@@ -23,6 +23,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -43,8 +44,9 @@ typedef struct
 worker;
 
 int addworker(unsigned int *nworkers, worker **workers, worker new);
+void rmworker(unsigned int *nworkers, worker **workers, unsigned int w);
 int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds);
-pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd);
+pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w);
 
 int main(int argc, char **argv)
 {
@@ -128,7 +130,6 @@ int main(int argc, char **argv)
 		perror("horde: listen");
 		return(EXIT_FAILURE);
 	}
-	printf("horde: started ok, listening on port %hu\n", port);
 	time_t /*upsince = time(NULL),*/ last_midnight=0;
 	fd_set master, readfds;
 	int fdmax;
@@ -136,14 +137,24 @@ int main(int argc, char **argv)
 	worker *workers=NULL;
 	{
 		worker inp=(worker){.pid=0, .prog=NULL, .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP};
-		if(addworker(&nworkers, &workers, inp))
+		if(addworker(&nworkers, &workers, inp)<0)
+		{
+			fprintf(stderr, "horde: addworker failed on INP\n");
 			return(EXIT_FAILURE);
+		}
 		worker sock=(worker){.pid=0, .prog=NULL, .pipe={sockfd, sockfd}, .special=SOCK};
-		if(addworker(&nworkers, &workers, sock))
+		if(addworker(&nworkers, &workers, sock)<0)
+		{
+			fprintf(stderr, "horde: addworker failed on SOCK\n");
 			return(EXIT_FAILURE);
+		}
 	}
 	if(worker_set(nworkers, workers, &fdmax, &master))
+	{
+		fprintf(stderr, "horde: worker_set failed\n");
 		return(EXIT_FAILURE);
+	}
+	printf("horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
 	char *input; unsigned int inpl, inpi;
 	init_char(&input, &inpl, &inpi);
@@ -212,14 +223,15 @@ int main(int argc, char **argv)
 						case SOCK:
 							if(workers[w].wait<time(NULL))
 							{
-								pid_t pid=do_fork("./net", "horde: net", &nworkers, &workers, rfd);
+								unsigned int ww;
+								pid_t pid=do_fork("./net", "horde: net", &nworkers, &workers, rfd, &ww);
 								if(pid<1)
 								{
 									fprintf(stderr, "horde: request was not satisfied\n");
 								}
 								else
 								{
-									fprintf(stderr, "horde: passed on to new instance of net[%d]\n", pid);
+									fprintf(stderr, "horde: passed on to new instance of net[%d], is #%u\n", pid, ww);
 									workers[w].wait=time(NULL); // now no more connections for 1 second (to prevent running several copies of net)
 								}
 								if(worker_set(nworkers, workers, &fdmax, &master))
@@ -232,6 +244,26 @@ int main(int argc, char **argv)
 							fprintf(stderr, "horde: data from worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
 							fprintf(stderr, "horde: < '%s'\n", buf);
+							hmsg h=hmsg_from_str(buf);
+							if(h)
+							{
+								if(strcmp(h->funct, "fin")==0)
+								{
+									rmworker(&nworkers, &workers, w);
+									fprintf(stderr, "horde: worker #%u finished, with status %s\n", w, h->data);
+									if(worker_set(nworkers, workers, &fdmax, &master))
+									{
+										fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
+									}
+								}
+								free_hmsg(h);
+							}
+							else
+							{
+								fprintf(stderr, "horde: couldn't understand the message\n");
+								//fprintf(stderr, "horde: \tfrom worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
+								//fprintf(stderr, "horde: \tdata '%s'\n", buf);
+							}
 							free(buf);
 						break;
 					}
@@ -249,12 +281,12 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 	if(!nworkers)
 	{
 		fprintf(stderr, "horde: addworker: nworkers==NULL\n");
-		return(1);
+		return(-1);
 	}
 	if(!workers)
 	{
 		fprintf(stderr, "horde: addworker: workers==NULL\n");
-		return(1);
+		return(-1);
 	}
 	unsigned int nw=(*nworkers)++;
 	worker *new_w=realloc(*workers, *nworkers*sizeof(**workers));
@@ -262,12 +294,33 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 	{
 		fprintf(stderr, "horde: addworker: new_w==NULL\n");
 		perror("horde: realloc");
-		return(1);
+		return(-1);
 	}
 	*workers=new_w;
 	new.wait=time(NULL);
 	new_w[nw]=new;
-	return(0);
+	return(nw);
+}
+
+void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
+{
+	if(w>=*nworkers) return;
+	if((*workers)[w].pid) waitpid((*workers)[w].pid, NULL, WNOHANG);
+	if((*workers)[w].pipe)
+	{
+		if((*workers)[w].pipe[0]) close((*workers)[w].pipe[0]);
+		if((*workers)[w].pipe[1]) close((*workers)[w].pipe[1]);
+	}
+	while(w<*nworkers)
+	{
+		(*workers)[w]=(*workers)[w+1];
+		w++;
+	}
+	(*nworkers)--;
+	worker *new_w=realloc(*workers, *nworkers*sizeof(**workers));
+	if(new_w)
+		*workers=new_w;
+	return;
 }
 
 int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
@@ -290,7 +343,7 @@ int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
 	return(0);
 }
 
-pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd)
+pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w)
 {
 	worker new=(worker){.prog=prog, .special=NONE};
 	if(pipe(new.pipe)==-1)
@@ -316,14 +369,16 @@ pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker
 			perror("horde: execl");
 			exit(EXIT_FAILURE);
 		break;
-		default: // parent
-			if(addworker(nworkers, workers, new))
+		default:; // parent
+			signed int ww;
+			if((ww=addworker(nworkers, workers, new))<0)
 			{
 				kill(new.pid, SIGHUP);
 				close(new.pipe[0]);
 				close(new.pipe[1]);
 				return(0);
 			}
+			*w=ww;
 		break;
 	}
 	return(new.pid);
