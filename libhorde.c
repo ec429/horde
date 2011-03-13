@@ -120,7 +120,104 @@ char *str_from_hmsg(const hmsg h)
 	return(rv);
 }
 
-hmsg hmsg_from_str(const char *str);
+hmsg hmsg_from_str(const char *str)
+{
+	const char *p=str, *funct=NULL, /**tag=NULL,*/ *curr=NULL;
+	char *ff=NULL;
+	unsigned int state=0;
+	hmsg rv=NULL;
+	while((*p)&&(state!=1024))
+	{
+		switch(state)
+		{
+			case 0:
+				if(*p=='(')
+				{
+					state=1;
+					funct=p+1;
+				}
+			break;
+			case 1:
+				if(isspace(*p))
+				{
+					if(*(p-1)=='(')
+					{
+						state=1024;
+						break;
+					}
+					state=2;
+					ff=strndup(funct, p-funct-1);
+				}
+				else if((*p=='(')||(*p==')')) // bad paren
+				{
+					fprintf(stderr, "hmsg_from_str: bad paren in input\n\t%s\n", str);
+					state=1024;
+					break;
+				}
+			break;
+			case 2:
+				if(!isspace(*p))
+				{
+					rv=new_hmsg(ff, NULL);
+					if(!rv)
+					{
+						fprintf(stderr, "hmsg_from_str: allocation failure\n");
+						perror("\tnew_hmsg");
+						state=1024;
+						break;
+					}
+					if(*p=='(')
+					{
+						state=3;
+					}
+					else
+					{
+						state=4;
+					}
+				}
+			break;
+			case 4:
+				switch(*p)
+				{
+					case '(':
+						fprintf(stderr, "hmsg_from_str: bad paren in input\n\t%s\n", str);
+						state=1024;
+						break;
+					break;
+					case ')':
+						return(rv); // no data segment
+					break;
+					case '#':
+						state=5;
+						curr=p+1;
+					break;
+					default:
+						if(!isspace(*p))
+						{
+							fprintf(stderr, "hmsg_from_str: malformed input\n\t%s\n", str);
+							state=1024;
+						}
+					break;
+				}
+			break;
+			case 5:
+				if(*p==')')
+				{
+					rv->data=hex_decode(curr, p-curr-1);
+					return(rv);
+				}
+			break;
+			default:
+				fprintf(stderr, "hmsg_from_str: internal error: bad state %u in parser\n", state);
+				state=1024;
+			break;
+		}
+		p++;
+	}
+	if(ff) free(ff);
+	if(rv) free_hmsg(rv);
+	return(NULL);
+}
 
 void free_hmsg(hmsg h)
 {
