@@ -81,66 +81,41 @@ int main(int argc, char **argv)
 	}
 	fprintf(stderr, "%s[%d]: read %u bytes\n", name, getpid(), bi);
 	char **line=malloc(bi*sizeof(char *));
-	unsigned int nlines=0;
 	char *next=buf, *last;
-	bool head=true;
 	while(*next)
 	{
-		if(head)
+		unsigned int nlines=0;
+		while(*next)
 		{
 			unsigned int ns=0;
 			while(*next&&strchr("\n\r", *next)) // skip over any \n or \r, incrementing line counter if \n
 			{
-				if(*next=='\n') // count a newline
-					if(ns++) // if it was already nonzero
-					{
-						line[nlines++]=""; // then we have a blank line
-						head=false;
-						next++;
-						goto cont;
-					}
-				*next++=0;
+				if(*next=='\n' && ns++) // count a newline; if it was already nonzero,
+				{
+					*next++=0;
+					goto eoh; // it's the end of the headers
+				}
+				else
+					*next++=0;
 			}
 			last=next;
 			while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
 			line[nlines++]=last;
 		}
-		else
+		eoh:
+		if(nlines==0)
 		{
-			line[nlines++]=next;
-			while(*next)
-			{
-				unsigned int ns=0;
-				while(*next&&strchr("\n\r", *next)) // look for double \ns
-				{
-					if(*next++=='\n') // count a newline
-						if(ns++) // if it was already nonzero
-						{
-							head=true; // then we've had a blank line, ie. end of the body
-							goto cont;
-						}
-				}
-				while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
-			}
+			fprintf(stderr, "%s[%d]: empty request!\n", name, getpid());
+			err(400, "Bad Request (Empty)", NULL, newhandle);
+			close(newhandle);
+			hfin(EXIT_SUCCESS);
+			return(EXIT_SUCCESS);
 		}
-		cont:;
-	}
-	if(nlines==0)
-	{
-		fprintf(stderr, "%s[%d]: empty request!\n", name, getpid());
-		err(400, "Bad Request (Empty)", NULL, newhandle);
-		close(newhandle);
-		hfin(EXIT_SUCCESS);
-		return(EXIT_SUCCESS);
-	}
-	char **n_line=realloc(line, nlines*sizeof(char *));
-	if(n_line)
-		line=n_line;
-	unsigned int l=0;
-	while(l<nlines)
-	{
+		char **n_line=realloc(line, nlines*sizeof(char *));
+		if(n_line)
+			line=n_line;
 		// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
-		char *method=strtok(line[l], " ");
+		char *method=strtok(line[0], " ");
 		char *uri=strtok(NULL, " ");
 		char *ver=strtok(NULL, "");
 		char *host=NULL;
@@ -207,34 +182,104 @@ int main(int argc, char **argv)
 		struct hdr {http_header name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
 		if(!headers)
 		{
-			fprintf(stderr, "%s[%d]: allocation failure (struct hdr *headers): malloc:%s\n", name, getpid(), strerror(errno));
+			fprintf(stderr, "%s[%d]: allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
 			return(EXIT_FAILURE);
 		}
-		unsigned int nhdrs=0;
-		for(;l<nlines;l++)
+		unsigned int l, nhdrs=0;
+		for(l=1;l<nlines;l++)
 		{
 			fprintf(stderr, "> %s\n", line[l]);
-			if(!*line[l])
+			char *colon=strchr(line[l], ':');
+			if(colon)
 			{
-				// end of headers
-				break;
-			}
-			else
-			{
-				char *colon=strchr(line[l], ':');
-				if(colon)
-				{
-					*colon++=0;
-					http_header h=get_header(line[l]);
-					headers[nhdrs++]=(struct hdr){.name=h, .value=colon};
-				} // otherwise, we just ignore the line
-			}
+				*colon++=0;
+				http_header h=get_header(line[l]);
+				headers[nhdrs++]=(struct hdr){.name=h, .value=colon};
+			} // otherwise, we just ignore the line
 		}
-		// TODO: Generate appropriate response (ie. all the rest)
-		l++;
+		switch(m)
+		{
+			case HTTP_METHOD_GET:;
+				hmsg path=new_hmsg("path", uri);
+				if(!path)
+				{
+					fprintf(stderr, "%s[%d]: allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				if(add_htag(path, "host", host))
+				{
+					fprintf(stderr, "%s[%d]: allocation failure (add_htag): %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				char *str=str_from_hmsg(path);
+				free(path);
+				if(str)
+				{
+					fprintf(stderr, "%s[%d]: sending request to path\n", name, getpid());
+					printf("%s\n", str);
+					free(str);
+				}
+				else
+				{
+					fprintf(stderr, "%s[%d]: allocation failure (str_from_hmsg): %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				char *frompath=getl(STDIN_FILENO);
+				fprintf(stderr, "%s[%d]: < '%s'\n", name, getpid(), frompath);
+				hmsg h=hmsg_from_str(frompath);
+				if(h)
+				{
+					free(frompath);
+				}
+				else
+				{
+					fprintf(stderr, "%s[%d]: couldn't understand the response from path: %s\n", name, getpid(), frompath);
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				if(strcmp(h->funct, "path"))
+				{
+					fprintf(stderr, "%s[%d]: path rewriting failed: %s\n", name, getpid(), frompath);
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				char *rpath=strdup(h->data);
+				if(!rpath)
+				{
+					fprintf(stderr, "%s[%d]: allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				free_hmsg(h);
+				// TODO: send the rpath to proc
+				free(rpath);
+			break;
+			default:
+				err(501, "Not Implemented", NULL, newhandle);
+				fprintf(stderr, "%s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				close(newhandle);
+				hfin(EXIT_FAILURE);
+				return(EXIT_FAILURE);
+			break;
+		}
 	}
 	free(line);
 	free(buf);
