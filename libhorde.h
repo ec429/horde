@@ -37,6 +37,7 @@ char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str);
 void free_hmsg(hmsg h);
 
+ssize_t hsend(int fd, const hmsg h);
 void hfin(unsigned char status);
 
 http_method get_method(const char *name);

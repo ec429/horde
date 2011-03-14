@@ -220,23 +220,28 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				char *str=str_from_hmsg(path);
-				free(path);
-				if(str)
+				fprintf(stderr, "%s[%d]: sending request to path\n", name, getpid());
+				if(hsend(1, path)>0)
 				{
-					fprintf(stderr, "%s[%d]: sending request to path\n", name, getpid());
-					printf("%s\n", str);fflush(stdout);
-					free(str);
+					free(path);
 				}
 				else
 				{
-					fprintf(stderr, "%s[%d]: allocation failure (str_from_hmsg): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "%s[%d]: communication failure (hsend): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
 				char *frompath=getl(STDIN_FILENO);
+				if(!(frompath&&*frompath))
+				{
+					fprintf(stderr, "%s[%d]: failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
 				fprintf(stderr, "%s[%d]: < '%s'\n", name, getpid(), frompath);
 				hmsg h=hmsg_from_str(frompath);
 				if(h)
@@ -269,6 +274,7 @@ int main(int argc, char **argv)
 					return(EXIT_FAILURE);
 				}
 				free_hmsg(h);
+				fprintf(stderr, "%s\n", rpath);
 				// TODO: send the rpath to proc
 				free(rpath);
 			break;

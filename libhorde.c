@@ -122,7 +122,7 @@ char *str_from_hmsg(const hmsg h)
 
 hmsg hmsg_from_str(const char *str)
 {
-	const char *p=str, *funct=NULL, /**tag=NULL,*/ *curr=NULL;
+	const char *p=str, *funct=NULL, *tag=NULL, *curr=NULL;
 	char *ff=NULL;
 	unsigned int state=0;
 	hmsg rv=NULL;
@@ -168,12 +168,23 @@ hmsg hmsg_from_str(const char *str)
 					}
 					if(*p=='(')
 					{
-						state=3;
+						state=3;tag=p+1;
 					}
 					else
 					{
 						state=4;p--;
 					}
+				}
+			break;
+			case 3:
+				if(isspace(*p))
+					state=6;
+				else if(*p==')')
+				{
+					char *htag=strndup(tag, p-tag);
+					add_htag(rv, htag, NULL);
+					free(htag);
+					state=7;
 				}
 			break;
 			case 4:
@@ -207,6 +218,19 @@ hmsg hmsg_from_str(const char *str)
 					return(rv);
 				}
 			break;
+			case 7:
+				if(!isspace(*p))
+				{
+					if(*p=='(')
+					{
+						state=3;tag=p+1;
+					}
+					else
+					{
+						state=4;p--;
+					}
+				}
+			break;
 			default:
 				fprintf(stderr, "hmsg_from_str: internal error: bad state %u in parser\n", state);
 				state=1024;
@@ -235,18 +259,30 @@ void free_hmsg(hmsg h)
 	free(h);
 }
 
+ssize_t hsend(int fd, const hmsg h)
+{
+	ssize_t rv;
+	char *str=str_from_hmsg(h);
+	if(str)
+	{
+		if(write(fd, str, strlen(str))<(ssize_t)strlen(str))
+			perror("hsend: write");
+		if(write(fd, "\n", 1)<1)
+			perror("hsend: write");
+		rv=1+strlen(str);
+		free(str);
+		return(rv);
+	}
+	return(-1);
+}
+
 void hfin(unsigned char status)
 {
 	char st[4];
 	snprintf(st, 4, "%hhu", status);
 	hmsg fin=new_hmsg("fin", st);
 	if(!fin) return;
-	char *str=str_from_hmsg(fin);
-	if(str)
-	{
-		printf("%s\n", str);
-		free(str);
-	}
+	hsend(1, fin);
 	free_hmsg(fin);
 }
 

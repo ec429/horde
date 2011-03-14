@@ -125,9 +125,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "horde: failed to bind\n");
 		return(EXIT_FAILURE);
 	}
-	setuid(realuid);
+	if(setuid(realuid)==-1)
+		perror("horde: setuid");
 	if(getuid()!=0)
-		printf("horde: Privs safely dropped\n");
+		printf("horde: privs safely dropped\n");
 	freeaddrinfo(servinfo);
 	if(listen(sockfd, 10)==-1)
 	{
@@ -247,7 +248,7 @@ int main(int argc, char **argv)
 						case NONE:
 							fprintf(stderr, "horde: data from worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
-							if(buf)
+							if(*buf)
 							{
 								fprintf(stderr, "horde: < '%s'\n", buf);
 								hmsg h=hmsg_from_str(buf);
@@ -267,12 +268,7 @@ int main(int argc, char **argv)
 										hmsg eh=new_hmsg("err", buf);
 										add_htag(eh, "what", "unrecognised-funct");
 										fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
-										char *str=str_from_hmsg(eh);
-										if(str)
-										{
-											write(workers[w].pipe[1], str, strlen(str));
-											free(str);
-										}
+										hsend(workers[w].pipe[1], eh);
 										if(eh) free(eh);
 									}
 									free_hmsg(h);
@@ -283,10 +279,10 @@ int main(int argc, char **argv)
 									//fprintf(stderr, "horde: \tfrom worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
 									//fprintf(stderr, "horde: \tdata '%s'\n", buf);
 								}
-								free(buf);
 							}
 							else
 							{
+								perror("horde: read");
 								rmworker(&nworkers, &workers, w);
 								fprintf(stderr, "horde: worker #%u died unexpectedly\n", w);
 								if(worker_set(nworkers, workers, &fdmax, &master))
@@ -294,6 +290,7 @@ int main(int argc, char **argv)
 									fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
 								}
 							}
+							if(buf) free(buf);
 						break;
 					}
 				}
@@ -392,32 +389,52 @@ int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w)
 {
 	worker new=(worker){.prog=prog, .special=NONE, .autoreplace=false, .awaiting=0};
-	if(pipe(new.pipe)==-1)
+	int s[2][2];
+	if(pipe(s[0])==-1)
 	{
 		perror("horde: pipe");
+		return(-1);
+	}
+	if(pipe(s[1])==-1)
+	{
+		perror("horde: pipe");
+		close(s[0][0]);
+		close(s[0][1]);
 		return(-1);
 	}
 	switch((new.pid=fork()))
 	{
 		case -1: // error
 			perror("horde: fork");
-			close(new.pipe[0]);
-			close(new.pipe[1]);
+			close(s[0][0]);
+			close(s[0][1]);
+			close(s[1][0]);
+			close(s[1][1]);
 		break;
 		case 0:; // chld
-			dup2(new.pipe[0], STDIN_FILENO);
-			dup2(new.pipe[1], STDOUT_FILENO);
-			dup2(rfd, 3);
+			if(dup2(s[0][0], STDIN_FILENO)==-1)
+				perror("horde: chld: dup2(0)");
+			if(dup2(s[1][1], STDOUT_FILENO)==-1)
+				perror("horde: chld: dup2(1)");
+			close(s[0][1]);
+			close(s[1][0]);
+			if(dup2(rfd, 3)==-1)
+				perror("horde: chld: dup2(3)");
 			execl(prog, name, NULL);
 			// still here?  then it failed
 			perror("horde: execl");
 			hfin(EXIT_FAILURE);
 			exit(EXIT_FAILURE);
 		break;
-		default:; // parent
+		default: // parent
+			new.pipe[0]=s[1][0];
+			new.pipe[1]=s[0][1];
+			close(s[0][0]);
+			close(s[1][1]);
 			signed int ww;
 			if((ww=addworker(nworkers, workers, new))<0)
 			{
+				fprintf(stderr, "horde: failed to add worker '%s'\n", name);
 				kill(new.pid, SIGHUP);
 				close(new.pipe[0]);
 				close(new.pipe[1]);
