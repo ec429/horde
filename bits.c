@@ -158,3 +158,37 @@ uchar_t *u_strdup(const uchar_t *s)
 	u_append_str(&buf, &l, &i, s);
 	return(buf);
 }
+
+char *normalise_path(char *path)
+{
+	if(!path) return(NULL);
+	unsigned int nelem=1, i=0, j=0;
+	char *p=path;
+	while((p=strchr(p+1, '/'))) nelem++;
+	char *el[nelem];
+	p=path;
+	el[i]=strtok(p, "/");
+	size_t l=1;
+	while(el[i])
+	{
+		if(strcmp(el[i], "..")==0)
+		{
+			if(i) i--;
+			l-=strlen(el[i])+1;
+		}
+		else if(strcmp(el[i], ".")!=0)
+		{
+			l+=strlen(el[i])+1;
+			i++;
+		}
+		el[i]=strtok(NULL, "/");
+	}
+	char *rpath;unsigned int rl, ri;
+	init_char(&rpath, &rl, &ri);
+	for(j=0;j<i;j++)
+	{
+		append_char(&rpath, &rl, &ri, '/');
+		append_str(&rpath, &rl, &ri, el[j]);
+	}
+	return(rpath);
+}

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -21,3 +22,5 @@ void u_init_char(uchar_t **buf, unsigned int *l, unsigned int *i); // initialise
 void u_append_char(uchar_t **buf, unsigned int *l, unsigned int *i, uchar_t c); // adds a unicode character to a unicode string buffer in heap (and realloc()s if needed)
 void u_append_str(uchar_t **buf, unsigned int *l, unsigned int *i, const uchar_t *s); // adds a unicode string to a unicode string buffer in heap (and realloc()s if needed)
 uchar_t *u_strdup(const uchar_t *s); // duplicates a unicode string on the heap; returns a malloc-like pointer
+
+char *normalise_path(char *p); // handles .. and . in paths; returns a malloc-like pointer

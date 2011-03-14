@@ -1,3 +1,12 @@
+#define _GNU_SOURCE
+/*
+	horde: modular http server
+	Copyright (C) 2011 Edward Cree
+
+	Licensed under GNU GPLv3+; see top of horde.c for details
+	
+	net: receives, parses, and handles HTTP requests
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -43,7 +52,7 @@ int main(int argc, char **argv)
 			is6=true;
 		break;
 		default:
-			fprintf(stderr, "horde: %s[%d]: bad address family, is %u", name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
+			fprintf(stderr, "horde: %s[%d]: 500 - bad address family, is %u", name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -73,7 +82,7 @@ int main(int argc, char **argv)
 	}
 	if(!buf)
 	{
-		fprintf(stderr, "horde: %s[%d]: allocation failure while reading from socket\n", name, getpid());
+		fprintf(stderr, "horde: %s[%d]: 500 - allocation failure while reading from socket\n", name, getpid());
 		err(500, "Internal Server Error", NULL, newhandle);
 		close(newhandle);
 		hfin(EXIT_FAILURE);
@@ -105,7 +114,7 @@ int main(int argc, char **argv)
 		eoh:
 		if(nlines==0)
 		{
-			fprintf(stderr, "horde: %s[%d]: empty request!\n", name, getpid());
+			fprintf(stderr, "horde: %s[%d]: 400 - empty request\n", name, getpid());
 			err(400, "Bad Request (Empty)", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_SUCCESS);
@@ -182,7 +191,7 @@ int main(int argc, char **argv)
 		struct hdr {http_header name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
 		if(!headers)
 		{
-			fprintf(stderr, "horde: %s[%d]: allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
+			fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -206,7 +215,7 @@ int main(int argc, char **argv)
 				hmsg path=new_hmsg("path", uri);
 				if(!path)
 				{
-					fprintf(stderr, "horde: %s[%d]: allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -227,7 +236,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					fprintf(stderr, "horde: %s[%d]: communication failure (hsend): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: 500 - communication failure (hsend): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -236,7 +245,7 @@ int main(int argc, char **argv)
 				char *frompath=getl(STDIN_FILENO);
 				if(!(frompath&&*frompath))
 				{
-					fprintf(stderr, "horde: %s[%d]: failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -250,7 +259,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					fprintf(stderr, "horde: %s[%d]: couldn't understand the response from path: %s\n", name, getpid(), frompath);
+					fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from path: %s\n", name, getpid(), frompath);
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -258,12 +267,20 @@ int main(int argc, char **argv)
 				}
 				if(strcmp(h->funct, "path"))
 				{
-					fprintf(stderr, "horde: %s[%d]: path rewriting failed: %s\n", name, getpid(), h->funct);
-					unsigned int i;
-					for(i=0;i<h->nparms;i++)
-						fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
-					fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
-					err(500, "Internal Server Error", NULL, newhandle);
+					if(strcmp(h->funct, "shutdown")==0)
+					{
+						fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
+						err(503, "Service Unavailable", NULL, newhandle);
+					}
+					else
+					{
+						fprintf(stderr, "horde: %s[%d]: 500 - path rewriting failed: %s\n", name, getpid(), h->funct);
+						unsigned int i;
+						for(i=0;i<h->nparms;i++)
+							fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+						fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
+						err(500, "Internal Server Error", NULL, newhandle);
+					}
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
@@ -271,7 +288,7 @@ int main(int argc, char **argv)
 				char *rpath=strdup(h->data);
 				if(!rpath)
 				{
-					fprintf(stderr, "horde: %s[%d]: allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);

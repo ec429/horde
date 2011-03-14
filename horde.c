@@ -185,10 +185,16 @@ int main(int argc, char **argv)
 	struct timeval timeout;
 	char *input; unsigned int inpl, inpi;
 	init_char(&input, &inpl, &inpi);
+	time_t shuttime=0;
 	int errupt=0;
 	while(!errupt)
 	{
 		time_t now = time(NULL);
+		if(shuttime)
+		{
+			if((shuttime<now)||(nworkers<=2))
+				errupt++;
+		}
 		if((now/86400)>(last_midnight/86400)) // reset b_s_m counter at midnight
 		{
 			last_midnight=now;
@@ -250,7 +256,15 @@ int main(int argc, char **argv)
 								{
 									// TODO: check parameters
 									fprintf(stderr, "horde: shutting down (requested on stdin)\n");
-									errupt++;
+									hmsg sh=new_hmsg("shutdown", NULL);
+									unsigned int w;
+									for(w=0;w<nworkers;w++)
+									{
+										workers[w].autoreplace=false;
+										if(workers[w].pid>0)
+											hsend(workers[w].pipe[1], sh);
+									}
+									shuttime=time(NULL)+8;
 								}
 								else
 								{
@@ -296,8 +310,8 @@ int main(int argc, char **argv)
 								{
 									if(strcmp(h->funct, "fin")==0)
 									{
-										rmworker(&nworkers, &workers, w);
 										fprintf(stderr, "horde: worker #%u finished, with status %s\n", w, h->data);
+										rmworker(&nworkers, &workers, w);
 										if(worker_set(nworkers, workers, &fdmax, &master))
 										{
 											fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
@@ -344,8 +358,8 @@ int main(int argc, char **argv)
 							else
 							{
 								perror("horde: read");
-								rmworker(&nworkers, &workers, w);
 								fprintf(stderr, "horde: worker #%u died unexpectedly\n", w);
+								rmworker(&nworkers, &workers, w);
 								if(worker_set(nworkers, workers, &fdmax, &master))
 								{
 									fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
@@ -358,8 +372,14 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	fprintf(stderr, "horde: shut down\n");
 	close(sockfd);
+	fprintf(stderr, "horde: shut down\n");
+	unsigned int w;
+	for(w=0;w<nworkers;w++)
+	{
+		if(workers[w].pid>0)
+			kill(workers[w].pid, SIGHUP);
+	}
 	return(EXIT_SUCCESS);
 }
 
