@@ -43,15 +43,26 @@ typedef struct
 	time_t wait;
 	bool autoreplace;
 	pid_t awaiting;
-	char *await_data;
 }
 worker;
+
+typedef struct
+{
+	const char *name, *prog;
+	bool only; // only run one instance of this worker?
+}
+handler;
 
 int addworker(unsigned int *nworkers, worker **workers, worker new);
 void rmworker(unsigned int *nworkers, worker **workers, unsigned int w);
 int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds);
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w);
-signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat);
+signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat, int *fdmax, fd_set *fds);
+
+int add_handler(handler new);
+
+unsigned int nhandlers;
+handler *handlers;
 
 int main(int argc, char **argv)
 {
@@ -159,6 +170,16 @@ int main(int argc, char **argv)
 	{
 		fprintf(stderr, "horde: worker_set failed\n");
 		return(EXIT_FAILURE);
+	}
+	nhandlers=0;
+	handlers=NULL;
+	{
+		handler path=(handler){.name="path", .prog="./path", .only=false};
+		if(add_handler(path)<0)
+		{
+			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
+			return(EXIT_FAILURE);
+		}
 	}
 	printf("horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
@@ -284,7 +305,7 @@ int main(int argc, char **argv)
 									}
 									else if(strcmp(h->funct, "path")==0)
 									{
-										signed int wpath=find_worker(&nworkers, &workers, "path", true);
+										signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
 										if(wpath<0)
 										{
 											fprintf(stderr, "horde: couldn't find or start \"path\" worker\n");
@@ -300,6 +321,7 @@ int main(int argc, char **argv)
 											sprintf(from, "net[%u]", workers[w].pid);
 											add_htag(h, "from", from);
 											hsend(workers[wpath].pipe[1], h);
+											workers[w].awaiting=workers[wpath].pid;
 										}
 									}
 									else
@@ -358,6 +380,7 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 	if(!new_w)
 	{
 		fprintf(stderr, "horde: addworker: new_w==NULL\n");
+		*nworkers=nw;
 		perror("horde: realloc");
 		return(-1);
 	}
@@ -377,6 +400,8 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 		if((*workers)[w].pipe[1]) close((*workers)[w].pipe[1]);
 	}
 	pid_t was=(*workers)[w].pid;
+	bool autoreplace=(*workers)[w].autoreplace && ((*workers)[w].wait+1<time(NULL));
+	const char *prog=(*workers)[w].prog, *name=(*workers)[w].name;
 	while(w<*nworkers)
 	{
 		(*workers)[w]=(*workers)[w+1];
@@ -387,21 +412,31 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 	{
 		if((*workers)[w].awaiting==was)
 		{
-			hmsg dead=new_hmsg("err", (*workers)[w].await_data);
+			hmsg dead=new_hmsg("err", NULL);
 			add_htag(dead, "what", "worker-died");
+			add_htag(dead, "worker-name", name);
 			fprintf(stderr, "horde: reporting death to #%u\n", w);
-			char *str=str_from_hmsg(dead);
-			if(str)
-			{
-				write((*workers)[w].pipe[1], str, strlen(str));
-				free(str);
-			}
+			hsend((*workers)[w].pipe[1], dead);
 			if(dead) free(dead);
 		}
 	}
 	worker *new_w=realloc(*workers, *nworkers*sizeof(**workers));
 	if(new_w)
 		*workers=new_w;
+	if(autoreplace)
+	{
+		unsigned int w;
+		pid_t p=do_fork(prog, name, nworkers, workers, 0, &w);
+		if(p<1)
+		{
+			fprintf(stderr, "horde: rmworker: autoreplace failed\n");
+		}
+		else
+		{
+			fprintf(stderr, "horde: rmworker: automatically replaced worker %s[%u->%u]\n", name, was, p);
+			(*workers)[w].autoreplace=true;
+		}
+	}
 	return;
 }
 
@@ -457,7 +492,7 @@ pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker
 				perror("horde: chld: dup2(1)");
 			close(s[0][1]);
 			close(s[1][0]);
-			if(dup2(rfd, 3)==-1)
+			if(rfd&&dup2(rfd, 3)==-1)
 				perror("horde: chld: dup2(3)");
 			execl(prog, name, NULL);
 			// still here?  then it failed
@@ -479,13 +514,13 @@ pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker
 				close(new.pipe[1]);
 				return(0);
 			}
-			*w=ww;
+			if(w) *w=ww;
 		break;
 	}
 	return(new.pid);
 }
 
-signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat)
+signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat, int *fdmax, fd_set *fds)
 {
 	unsigned int w;
 	for(w=0;w<*nworkers;w++)
@@ -495,7 +530,39 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 	}
 	if(creat)
 	{
-		// need the list of known worker types
+		unsigned int h;
+		for(h=0;h<nhandlers;h++)
+		{
+			if(strcmp(handlers[h].name, name)==0)
+			{
+				pid_t p=do_fork(handlers[h].prog, handlers[h].name, nworkers, workers, 0, &w);
+				if(p>0)
+				{
+					(*workers)[w].autoreplace=true;
+					if(worker_set(*nworkers, *workers, fdmax, fds))
+					{
+						fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
+					}
+					return(w);
+				}
+			}
+		}
 	}
 	return(-1);
+}
+
+int add_handler(handler new)
+{
+	unsigned int nh=nhandlers++;
+	handler *new_h=realloc(handlers, nhandlers*sizeof(*handlers));
+	if(!new_h)
+	{
+		fprintf(stderr, "horde: add_handler: new_h==NULL\n");
+		nhandlers=nh;
+		perror("horde: realloc");
+		return(-1);
+	}
+	handlers=new_h;
+	new_h[nh]=new;
+	return(nh);
 }

@@ -50,8 +50,8 @@ hmsg new_hmsg(const char *funct, const char *data)
 	hmsg rv=malloc(sizeof(*rv));
 	if(rv)
 	{
-		if(funct) rv->funct=strdup(funct);
-		if(data) rv->data=strdup(data);
+		if(funct) rv->funct=strdup(funct); else rv->funct=NULL;
+		if(data) rv->data=strdup(data); else rv->data=NULL;
 		rv->nparms=0;
 		rv->p_tag=rv->p_value=NULL;
 	}
