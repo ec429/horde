@@ -80,6 +80,28 @@ int main(int argc, char **argv)
 	}
 	fprintf(stderr, "%s[%d]: read %u bytes\n", name, getpid(), bi);
 	fprintf(stderr, "%s\n", buf);
+	char **line=malloc(bi*sizeof(char *));
+	unsigned int nlines=0;
+	// TODO: something clever to find double \n
+	char *next=strtok(buf, "\n\r");
+	while(next)
+	{
+		line[nlines++]=next;
+		next=strtok(NULL, "\n\r");
+	}
+	if(nlines==0)
+	{
+		fprintf(stderr, "%s[%d]: empty request!\n", name, getpid());
+		err(400, "Bad Request (Empty)", NULL, newhandle);
+		close(newhandle);
+		hfin(EXIT_SUCCESS); // we may not have sent a response, but /we/ didn't fail
+		return(EXIT_SUCCESS);
+	}
+	char **n_line=realloc(line, nlines*sizeof(char *));
+	if(n_line)
+		line=n_line;
+	//
+	free(line);
 	free(buf);
 	//fprintf(stderr, "%s[%d]: \n", name, getpid());
 	fprintf(stderr, "%s[%d]: closing conn\n", name, getpid());
