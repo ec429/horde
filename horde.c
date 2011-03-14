@@ -181,6 +181,7 @@ int main(int argc, char **argv)
 			return(EXIT_FAILURE);
 		}
 	}
+	signal(SIGPIPE, SIG_IGN);
 	printf("horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
 	char *input; unsigned int inpl, inpi;
