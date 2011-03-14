@@ -82,12 +82,17 @@ int main(int argc, char **argv)
 	fprintf(stderr, "%s\n", buf);
 	char **line=malloc(bi*sizeof(char *));
 	unsigned int nlines=0;
-	// TODO: something clever to find double \n
-	char *next=strtok(buf, "\n\r");
-	while(next)
+	char *next=buf, *last;
+	while(*next)
 	{
-		line[nlines++]=next;
-		next=strtok(NULL, "\n\r");
+		unsigned int ns=0;
+		while(*next&&strchr("\n\r", *next)) // skip over any \n or \r, incrementing line counter if \n
+			if(*next++=='\n') // count a newline
+				if(ns++) // if it was already nonzero
+					line[nlines++]=""; // then we have a blank line
+		last=next;
+		while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
+		line[nlines++]=last;
 	}
 	if(nlines==0)
 	{
