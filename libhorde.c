@@ -122,7 +122,7 @@ char *str_from_hmsg(const hmsg h)
 
 hmsg hmsg_from_str(const char *str)
 {
-	const char *p=str, *funct=NULL, *tag=NULL, *curr=NULL;
+	const char *p=str, *funct=NULL, *tag=NULL, *tage=NULL, *curr=NULL;
 	char *ff=NULL;
 	unsigned int state=0;
 	hmsg rv=NULL;
@@ -148,11 +148,31 @@ hmsg hmsg_from_str(const char *str)
 					state=2;
 					ff=strndup(funct, p-funct);
 				}
-				else if((*p=='(')||(*p==')')) // bad paren
+				else if(*p=='(') // bad paren
 				{
 					fprintf(stderr, "hmsg_from_str: bad paren in funct\n\t%s\n", str);
 					state=1024;
 					break;
+				}
+				else if(*p==')')
+				{
+					ff=strndup(funct, p-funct);
+					if(!ff)
+					{
+						fprintf(stderr, "hmsg_from_str: allocation failure\n");
+						perror("\tstrndup");
+						state=1024;
+						break;
+					}
+					rv=new_hmsg(ff, NULL);
+					if(!rv)
+					{
+						fprintf(stderr, "hmsg_from_str: allocation failure\n");
+						perror("\tnew_hmsg");
+						state=1024;
+						break;
+					}
+					return(rv);
 				}
 			break;
 			case 2:
@@ -178,7 +198,10 @@ hmsg hmsg_from_str(const char *str)
 			break;
 			case 3:
 				if(isspace(*p))
+				{
+					tage=p;
 					state=6;
+				}
 				else if(*p==')')
 				{
 					char *htag=strndup(tag, p-tag);
@@ -205,8 +228,8 @@ hmsg hmsg_from_str(const char *str)
 					default:
 						if(!isspace(*p))
 						{
-							fprintf(stderr, "hmsg_from_str: malformed input\n\t%s\n", str);
-							state=1024;
+							state=9;
+							curr=p;
 						}
 					break;
 				}
@@ -216,6 +239,33 @@ hmsg hmsg_from_str(const char *str)
 				{
 					rv->data=hex_decode(curr, p-curr);
 					return(rv);
+				}
+			break;
+			case 6:
+				switch(*p)
+				{
+					case '(':
+						fprintf(stderr, "hmsg_from_str: bad paren in data\n\t%s\n", str);
+						state=1024;
+						break;
+					break;
+					case ')':;
+						char *htag=strndup(tag, p-tag);
+						add_htag(rv, htag, NULL);
+						free(htag);
+						state=7;
+					break;
+					case '#':
+						state=8;
+						curr=p+1;
+					break;
+					default:
+						if(!isspace(*p))
+						{
+							state=10;
+							curr=p;
+						}
+					break;
 				}
 			break;
 			case 7:
@@ -229,6 +279,35 @@ hmsg hmsg_from_str(const char *str)
 					{
 						state=4;p--;
 					}
+				}
+			break;
+			case 8:
+				if(*p==')')
+				{
+					char *htag=strndup(tag, tage-tag);
+					char *hval=hex_decode(curr, p-curr);
+					add_htag(rv, htag, hval);
+					if(htag) free(htag);
+					if(hval) free(hval);
+					state=7;
+				}
+			break;
+			case 9:
+				if(*p==')')
+				{
+					rv->data=strndup(curr, p-curr);
+					return(rv);
+				}
+			break;
+			case 10:
+				if(*p==')')
+				{
+					char *htag=strndup(tag, tage-tag);
+					char *hval=strndup(curr, p-curr);
+					add_htag(rv, htag, hval);
+					if(htag) free(htag);
+					if(hval) free(hval);
+					state=7;
 				}
 			break;
 			default:

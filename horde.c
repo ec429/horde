@@ -37,7 +37,7 @@
 typedef struct
 {
 	pid_t pid;
-	const char *prog;
+	const char *prog, *name;
 	int pipe[2];
 	enum {NONE, INP, SOCK} special;
 	time_t wait;
@@ -51,6 +51,7 @@ int addworker(unsigned int *nworkers, worker **workers, worker new);
 void rmworker(unsigned int *nworkers, worker **workers, unsigned int w);
 int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds);
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w);
+signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat);
 
 int main(int argc, char **argv)
 {
@@ -141,13 +142,13 @@ int main(int argc, char **argv)
 	unsigned int nworkers=0;
 	worker *workers=NULL;
 	{
-		worker inp=(worker){.pid=0, .prog=NULL, .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false, .awaiting=0};
+		worker inp=(worker){.pid=0, .prog=NULL, .name="<stdin>", .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false, .awaiting=0};
 		if(addworker(&nworkers, &workers, inp)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on INP\n");
 			return(EXIT_FAILURE);
 		}
-		worker sock=(worker){.pid=0, .prog=NULL, .pipe={sockfd, sockfd}, .special=SOCK, .autoreplace=true, .awaiting=0};
+		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .autoreplace=true, .awaiting=0};
 		if(addworker(&nworkers, &workers, sock)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on SOCK\n");
@@ -221,7 +222,25 @@ int main(int argc, char **argv)
 								else
 									break;
 							}
-							fprintf(stderr, "horde: cmd '%s'\n", input);
+							hmsg ih=hmsg_from_str(input);
+							if(ih)
+							{
+								if(strcmp(ih->funct, "shutdown")==0)
+								{
+									// TODO: check parameters
+									fprintf(stderr, "horde: shutting down (requested on stdin)\n");
+									errupt++;
+								}
+								else
+								{
+									fprintf(stderr, "horde: unrecognised cmd '%s'\n", ih->funct);
+								}
+								free_hmsg(ih);
+							}
+							else
+							{
+								fprintf(stderr, "horde: failed to parse input '%s'\n", input);
+							}
 							free(input);
 							init_char(&input, &inpl, &inpi);
 						break;
@@ -229,7 +248,7 @@ int main(int argc, char **argv)
 							if(workers[w].wait<time(NULL))
 							{
 								unsigned int ww;
-								pid_t pid=do_fork("./net", "horde: net", &nworkers, &workers, rfd, &ww);
+								pid_t pid=do_fork("./net", "net", &nworkers, &workers, rfd, &ww);
 								if(pid<1)
 								{
 									fprintf(stderr, "horde: request was not satisfied\n");
@@ -263,13 +282,33 @@ int main(int argc, char **argv)
 											fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
 										}
 									}
+									else if(strcmp(h->funct, "path")==0)
+									{
+										signed int wpath=find_worker(&nworkers, &workers, "path", true);
+										if(wpath<0)
+										{
+											fprintf(stderr, "horde: couldn't find or start \"path\" worker\n");
+											hmsg eh=new_hmsg("err", buf);
+											add_htag(eh, "what", "worker-init");
+											hsend(workers[w].pipe[1], eh);
+											if(eh) free_hmsg(eh);
+										}
+										else
+										{
+											fprintf(stderr, "horde: passing message on to #%u, path[%u]\n", wpath, workers[wpath].pid);
+											char from[32];
+											sprintf(from, "net[%u]", workers[w].pid);
+											add_htag(h, "from", from);
+											hsend(workers[wpath].pipe[1], h);
+										}
+									}
 									else
 									{
 										hmsg eh=new_hmsg("err", buf);
 										add_htag(eh, "what", "unrecognised-funct");
 										fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
 										hsend(workers[w].pipe[1], eh);
-										if(eh) free(eh);
+										if(eh) free_hmsg(eh);
 									}
 									free_hmsg(h);
 								}
@@ -297,7 +336,7 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	fprintf(stderr, "horde: shutting down\n");
+	fprintf(stderr, "horde: shut down\n");
 	close(sockfd);
 	return(EXIT_SUCCESS);
 }
@@ -388,7 +427,7 @@ int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
 
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w)
 {
-	worker new=(worker){.prog=prog, .special=NONE, .autoreplace=false, .awaiting=0};
+	worker new=(worker){.prog=prog, .name=name, .special=NONE, .autoreplace=false, .awaiting=0};
 	int s[2][2];
 	if(pipe(s[0])==-1)
 	{
@@ -444,4 +483,19 @@ pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker
 		break;
 	}
 	return(new.pid);
+}
+
+signed int find_worker(unsigned int *nworkers, worker **workers, const char *name, bool creat)
+{
+	unsigned int w;
+	for(w=0;w<*nworkers;w++)
+	{
+		if(strcmp((*workers)[w].name, name)==0)
+			return(w);
+	}
+	if(creat)
+	{
+		// need the list of known worker types
+	}
+	return(-1);
 }

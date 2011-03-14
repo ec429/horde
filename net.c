@@ -26,13 +26,13 @@ int main(int argc, char **argv)
 	socklen_t addr_size=sizeof(remote);
 	if((newhandle=accept(3, (struct sockaddr *)&remote, &addr_size))==-1)
 	{
-		fprintf(stderr, "%s[%d]: ", name, getpid());
+		fprintf(stderr, "horde: %s[%d]: ", name, getpid());
 		perror("accept");
 		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
 	close(3); // don't need this any more
-	fprintf(stderr, "%s[%d]: accepted\n", name, getpid());
+	fprintf(stderr, "horde: %s[%d]: accepted\n", name, getpid());
 	bool is6=false; // is this IPv6 (else v4)?
 	switch(((struct sockaddr_in *)&remote)->sin_family)
 	{
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 			is6=true;
 		break;
 		default:
-			fprintf(stderr, "%s[%d]: bad address family, is %u", name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
+			fprintf(stderr, "horde: %s[%d]: bad address family, is %u", name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 	}
 	char *ip = malloc(is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
 	if(ip) inet_ntop(is6?AF_INET6:AF_INET, is6?(const void *)&((struct sockaddr_in6 *)&remote)->sin6_addr:(const void *)&((struct sockaddr_in *)&remote)->sin_addr, ip, is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
-	if(ip) fprintf(stderr, "%s[%d]: remote IP is %s\n", name, getpid(), ip);
+	if(ip) fprintf(stderr, "horde: %s[%d]: remote IP is %s\n", name, getpid(), ip);
 	char *buf;unsigned int bl, bi;
 	init_char(&buf, &bl, &bi);
 	while((bi<4) || strncmp(buf+bi-4, "\r\n\r\n", 4))
@@ -73,13 +73,13 @@ int main(int argc, char **argv)
 	}
 	if(!buf)
 	{
-		fprintf(stderr, "%s[%d]: allocation failure while reading from socket\n", name, getpid());
+		fprintf(stderr, "horde: %s[%d]: allocation failure while reading from socket\n", name, getpid());
 		err(500, "Internal Server Error", NULL, newhandle);
 		close(newhandle);
 		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
-	fprintf(stderr, "%s[%d]: read %u bytes\n", name, getpid(), bi);
+	fprintf(stderr, "horde: %s[%d]: read %u bytes\n", name, getpid(), bi);
 	char **line=malloc(bi*sizeof(char *));
 	char *next=buf, *last;
 	while(*next)
@@ -105,7 +105,7 @@ int main(int argc, char **argv)
 		eoh:
 		if(nlines==0)
 		{
-			fprintf(stderr, "%s[%d]: empty request!\n", name, getpid());
+			fprintf(stderr, "horde: %s[%d]: empty request!\n", name, getpid());
 			err(400, "Bad Request (Empty)", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_SUCCESS);
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 		if(v==HTTP_VERSION_UNKNOWN)
 		{
 			err(505, "HTTP Version Not Supported", NULL, newhandle);
-			fprintf(stderr, "%s[%d]: 505 HTTP Version Not Supported [%s]\n", name, getpid(), ver);
+			fprintf(stderr, "horde: %s[%d]: 505 HTTP Version Not Supported [%s]\n", name, getpid(), ver);
 			close(newhandle);
 			hfin(EXIT_SUCCESS); // success because it's an unrecognised version, not merely an unimplemented feature
 			return(EXIT_SUCCESS);
@@ -136,7 +136,7 @@ int main(int argc, char **argv)
 				{
 					if(strncmp(uri, "http://", 7)!=0)
 					{
-						fprintf(stderr, "%s[%d]: 400 Bad Request (Malformed URI) '%s'\n", name, getpid(), uri);
+						fprintf(stderr, "horde: %s[%d]: 400 Bad Request (Malformed URI) '%s'\n", name, getpid(), uri);
 						err(400, "Bad Request (Malformed URI)", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_SUCCESS);
@@ -159,21 +159,21 @@ int main(int argc, char **argv)
 			break;
 			case HTTP_METHOD_CONNECT:
 				err(501, "Not Supported", NULL, newhandle);
-				fprintf(stderr, "%s[%d]: 501 Not Supported (%s)\n", name, getpid(), method);
+				fprintf(stderr, "horde: %s[%d]: 501 Not Supported (%s)\n", name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_SUCCESS); // success because it's an inapplicable method, not merely an unimplemented feature
 				return(EXIT_SUCCESS);
 			break;
 			case HTTP_METHOD_UNKNOWN:
 				err(501, "Unknown Method", NULL, newhandle);
-				fprintf(stderr, "%s[%d]: 501 Unknown Method (%s(\n", name, getpid(), method);
+				fprintf(stderr, "horde: %s[%d]: 501 Unknown Method (%s(\n", name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_SUCCESS); // success because it's an unrecognised method, not merely an unimplemented feature
 				return(EXIT_SUCCESS);
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
-				fprintf(stderr, "%s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_FAILURE);
 				return(EXIT_FAILURE);
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
 		struct hdr {http_header name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
 		if(!headers)
 		{
-			fprintf(stderr, "%s[%d]: allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
+			fprintf(stderr, "horde: %s[%d]: allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -206,7 +206,7 @@ int main(int argc, char **argv)
 				hmsg path=new_hmsg("path", uri);
 				if(!path)
 				{
-					fprintf(stderr, "%s[%d]: allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -214,20 +214,20 @@ int main(int argc, char **argv)
 				}
 				if(add_htag(path, "host", host))
 				{
-					fprintf(stderr, "%s[%d]: allocation failure (add_htag): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: allocation failure (add_htag): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				fprintf(stderr, "%s[%d]: sending request to path\n", name, getpid());
+				fprintf(stderr, "horde: %s[%d]: sending request to path\n", name, getpid());
 				if(hsend(1, path)>0)
 				{
 					free(path);
 				}
 				else
 				{
-					fprintf(stderr, "%s[%d]: communication failure (hsend): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: communication failure (hsend): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -236,13 +236,13 @@ int main(int argc, char **argv)
 				char *frompath=getl(STDIN_FILENO);
 				if(!(frompath&&*frompath))
 				{
-					fprintf(stderr, "%s[%d]: failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: failed to read response (getl): %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				fprintf(stderr, "%s[%d]: < '%s'\n", name, getpid(), frompath);
+				fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
 				hmsg h=hmsg_from_str(frompath);
 				if(h)
 				{
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					fprintf(stderr, "%s[%d]: couldn't understand the response from path: %s\n", name, getpid(), frompath);
+					fprintf(stderr, "horde: %s[%d]: couldn't understand the response from path: %s\n", name, getpid(), frompath);
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -258,7 +258,11 @@ int main(int argc, char **argv)
 				}
 				if(strcmp(h->funct, "path"))
 				{
-					fprintf(stderr, "%s[%d]: path rewriting failed: %s\n", name, getpid(), frompath);
+					fprintf(stderr, "horde: %s[%d]: path rewriting failed: %s\n", name, getpid(), h->funct);
+					unsigned int i;
+					for(i=0;i<h->nparms;i++)
+						fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+					fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -267,7 +271,7 @@ int main(int argc, char **argv)
 				char *rpath=strdup(h->data);
 				if(!rpath)
 				{
-					fprintf(stderr, "%s[%d]: allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -280,7 +284,7 @@ int main(int argc, char **argv)
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
-				fprintf(stderr, "%s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_FAILURE);
 				return(EXIT_FAILURE);
@@ -289,8 +293,8 @@ int main(int argc, char **argv)
 	}
 	free(line);
 	free(buf);
-	//fprintf(stderr, "%s[%d]: \n", name, getpid());
-	fprintf(stderr, "%s[%d]: closing conn\n", name, getpid());
+	//fprintf(stderr, "horde: %s[%d]: \n", name, getpid());
+	fprintf(stderr, "horde: %s[%d]: closing conn\n", name, getpid());
 	close(newhandle);
 	hfin(EXIT_SUCCESS);
 	return(EXIT_SUCCESS);
