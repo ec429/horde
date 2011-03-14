@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 				return(EXIT_FAILURE);
 			break;
 		}
-		struct hdr {http_header name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
+		struct hdr {http_header name; const char *un_name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
 		if(!headers)
 		{
 			fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
@@ -205,8 +205,11 @@ int main(int argc, char **argv)
 			if(colon)
 			{
 				*colon++=0;
+				while(isspace(*colon)) colon++;
 				http_header h=get_header(line[l]);
-				headers[nhdrs++]=(struct hdr){.name=h, .value=colon};
+				headers[nhdrs++]=(struct hdr){.name=h, .un_name=line[l], .value=colon};
+				if(h==HTTP_HEADER_HOST)
+					host=colon;
 			} // otherwise, we just ignore the line
 		}
 		switch(m)
