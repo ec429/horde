@@ -249,3 +249,86 @@ void hfin(unsigned char status)
 	}
 	free_hmsg(fin);
 }
+
+http_method get_method(const char *name)
+{
+	if(strcmp(name, "OPTIONS")==0) return(HTTP_METHOD_OPTIONS);
+	if(strcmp(name, "GET")==0) return(HTTP_METHOD_GET);
+	if(strcmp(name, "HEAD")==0) return(HTTP_METHOD_HEAD);
+	if(strcmp(name, "POST")==0) return(HTTP_METHOD_POST);
+	if(strcmp(name, "PUT")==0) return(HTTP_METHOD_PUT);
+	if(strcmp(name, "DELETE")==0) return(HTTP_METHOD_DELETE);
+	if(strcmp(name, "TRACE")==0) return(HTTP_METHOD_TRACE);
+	if(strcmp(name, "CONNECT")==0) return(HTTP_METHOD_CONNECT);
+	return(HTTP_METHOD_UNKNOWN);
+}
+
+http_version get_version(const char *name)
+{
+	if(strcmp(name, "HTTP/0.1")==0) return(HTTP_VERSION_0_1);
+	if(strcmp(name, "HTTP/1.0")==0) return(HTTP_VERSION_1_0);
+	if(strcmp(name, "HTTP/1.1")==0) return(HTTP_VERSION_1_1);
+	return(HTTP_VERSION_UNKNOWN);
+}
+
+http_header get_header(const char *name)
+{
+	if(strcmp(name, "Cache-Control")==0) return(HTTP_HEADER_CACHE_CONTROL);
+	if(strcmp(name, "Connection")==0) return(HTTP_HEADER_CONNECTION);
+	if(strcmp(name, "Date")==0) return(HTTP_HEADER_DATE);
+	if(strcmp(name, "Pragma")==0) return(HTTP_HEADER_PRAGMA);
+	if(strcmp(name, "Trailer")==0) return(HTTP_HEADER_TRAILER);
+	if(strcmp(name, "Transfer-Encoding")==0) return(HTTP_HEADER_TRANSFER_ENCODING);
+	if(strcmp(name, "Upgrade")==0) return(HTTP_HEADER_UPGRADE);
+	if(strcmp(name, "Via")==0) return(HTTP_HEADER_VIA);
+	if(strcmp(name, "Warning")==0) return(HTTP_HEADER_WARNING);
+	if(strcmp(name, "Accept")==0) return(HTTP_HEADER_ACCEPT);
+	if(strcmp(name, "Accept-Charset")==0) return(HTTP_HEADER_ACCEPT_CHARSET);
+	if(strcmp(name, "Accept-Encoding")==0) return(HTTP_HEADER_ACCEPT_ENCODING);
+	if(strcmp(name, "Accept-Language")==0) return(HTTP_HEADER_ACCEPT_LANGUAGE);
+	if(strcmp(name, "Authorization")==0) return(HTTP_HEADER_AUTHORIZATION);
+	if(strcmp(name, "Expect")==0) return(HTTP_HEADER_EXPECT);
+	if(strcmp(name, "From")==0) return(HTTP_HEADER_FROM);
+	if(strcmp(name, "Host")==0) return(HTTP_HEADER_HOST);
+	if(strcmp(name, "If-Match")==0) return(HTTP_HEADER_IF_MATCH);
+	if(strcmp(name, "If-Modified-Since")==0) return(HTTP_HEADER_IF_MODIFIED_SINCE);
+	if(strcmp(name, "If-None-Match")==0) return(HTTP_HEADER_IF_NONE_MATCH);
+	if(strcmp(name, "If-Range")==0) return(HTTP_HEADER_IF_RANGE);
+	if(strcmp(name, "If-Unmodified-Since")==0) return(HTTP_HEADER_IF_UNMODIFIED_SINCE);
+	if(strcmp(name, "Max-Forwards")==0) return(HTTP_HEADER_MAX_FORWARDS);
+	if(strcmp(name, "Proxy-Authorization")==0) return(HTTP_HEADER_PROXY_AUTHORIZATION);
+	if(strcmp(name, "Range")==0) return(HTTP_HEADER_RANGE);
+	if(strcmp(name, "Referer")==0) return(HTTP_HEADER_REFERER);
+	if(strcmp(name, "TE")==0) return(HTTP_HEADER_TE);
+	if(strcmp(name, "User-Agent")==0) return(HTTP_HEADER_USER_AGENT);
+	if(strcmp(name, "Accept-Ranges")==0) return(HTTP_HEADER_ACCEPT_RANGES);
+	if(strcmp(name, "Age")==0) return(HTTP_HEADER_AGE);
+	if(strcmp(name, "ETag")==0) return(HTTP_HEADER_ETAG);
+	if(strcmp(name, "Location")==0) return(HTTP_HEADER_LOCATION);
+	if(strcmp(name, "Proxy-Authenticate")==0) return(HTTP_HEADER_PROXY_AUTHENTICATE);
+	if(strcmp(name, "Retry-After")==0) return(HTTP_HEADER_RETRY_AFTER);
+	if(strcmp(name, "Server")==0) return(HTTP_HEADER_SERVER);
+	if(strcmp(name, "Vary")==0) return(HTTP_HEADER_VARY);
+	if(strcmp(name, "WWW-Authenticate")==0) return(HTTP_HEADER_WWW_AUTHENTICATE);
+	if(strcmp(name, "Allow")==0) return(HTTP_HEADER_ALLOW);
+	if(strcmp(name, "Content-Encoding")==0) return(HTTP_HEADER_CONTENT_ENCODING);
+	if(strcmp(name, "Content-Language")==0) return(HTTP_HEADER_CONTENT_LANGUAGE);
+	if(strcmp(name, "Content-Length")==0) return(HTTP_HEADER_CONTENT_LENGTH);
+	if(strcmp(name, "Content-Location")==0) return(HTTP_HEADER_CONTENT_LOCATION);
+	if(strcmp(name, "Content-MD5")==0) return(HTTP_HEADER_CONTENT_MD5);
+	if(strcmp(name, "Content-Range")==0) return(HTTP_HEADER_CONTENT_RANGE);
+	if(strcmp(name, "Content-Type")==0) return(HTTP_HEADER_CONTENT_TYPE);
+	if(strcmp(name, "Expires")==0) return(HTTP_HEADER_EXPIRES);
+	if(strcmp(name, "Last-Modified")==0) return(HTTP_HEADER_LAST_MODIFIED);
+	if(strcmp(name, "X-Frame-Options")==0) return(HTTP_HEADER_X_FRAME_OPTIONS);
+	if(strcmp(name, "X-XSS-Protection")==0) return(HTTP_HEADER_X_XSS_PROTECTION);
+	if(strcmp(name, "X-Content-Type-Options")==0) return(HTTP_HEADER_X_CONTENT_TYPE_OPTIONS);
+	if(strcmp(name, "X-Requested-With")==0) return(HTTP_HEADER_X_REQUESTED_WITH);
+	if(strcmp(name, "X-Forwarded-For")==0) return(HTTP_HEADER_X_FORWARDED_FOR);
+	if(strcmp(name, "X-Forwarded-Proto")==0) return(HTTP_HEADER_X_FORWARDED_PROTO);
+	if(strcmp(name, "X-Powered-By")==0) return(HTTP_HEADER_X_POWERED_BY);
+	if(strcmp(name, "X-Do-Not-Track")==0) return(HTTP_HEADER_X_DO_NOT_TRACK);
+	if(strcmp(name, "DNT")==0) return(HTTP_HEADER_X_DNT);
+	if(strncmp(name, "X-", 2)==0) return(HTTP_HEADER_X__UNKNOWN);
+	return(HTTP_HEADER_UNKNOWN);
+}

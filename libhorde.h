@@ -14,6 +14,7 @@
 #include <ctype.h>
 
 #include "bits.h"
+#include "http.h"
 
 #define HTTPD_VERSION	"0.0.1"
 
@@ -37,3 +38,7 @@ hmsg hmsg_from_str(const char *str);
 void free_hmsg(hmsg h);
 
 void hfin(unsigned char status);
+
+http_method get_method(const char *name);
+http_version get_version(const char *name);
+http_header get_header(const char *name);

@@ -4,13 +4,13 @@ CFLAGS := -Wall -Wextra -Werror -pedantic -std=gnu99 -g
 
 all: horde net
 
-horde: horde.c libhorde.o libhorde.h bits.o bits.h
+horde: horde.c libhorde.o libhorde.h http.h bits.o bits.h
 	$(CC) $(CFLAGS) -o $@ horde.c libhorde.o bits.o
 
-net: net.c libhorde.o libhorde.h bits.o bits.h
+net: net.c libhorde.o libhorde.h http.h bits.o bits.h
 	$(CC) $(CFLAGS) -o $@ net.c libhorde.o bits.o
 
-libhorde.o: libhorde.c libhorde.h bits.h
+libhorde.o: libhorde.c libhorde.h http.h bits.h
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -o $@ -c $<

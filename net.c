@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <limits.h>
+#include <errno.h>
 
 #include "bits.h"
 #include "libhorde.h"
@@ -79,33 +80,162 @@ int main(int argc, char **argv)
 		return(EXIT_FAILURE);
 	}
 	fprintf(stderr, "%s[%d]: read %u bytes\n", name, getpid(), bi);
-	fprintf(stderr, "%s\n", buf);
 	char **line=malloc(bi*sizeof(char *));
 	unsigned int nlines=0;
 	char *next=buf, *last;
+	bool head=true;
 	while(*next)
 	{
-		unsigned int ns=0;
-		while(*next&&strchr("\n\r", *next)) // skip over any \n or \r, incrementing line counter if \n
-			if(*next++=='\n') // count a newline
-				if(ns++) // if it was already nonzero
-					line[nlines++]=""; // then we have a blank line
-		last=next;
-		while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
-		line[nlines++]=last;
+		if(head)
+		{
+			unsigned int ns=0;
+			while(*next&&strchr("\n\r", *next)) // skip over any \n or \r, incrementing line counter if \n
+			{
+				if(*next=='\n') // count a newline
+					if(ns++) // if it was already nonzero
+					{
+						line[nlines++]=""; // then we have a blank line
+						head=false;
+						next++;
+						goto cont;
+					}
+				*next++=0;
+			}
+			last=next;
+			while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
+			line[nlines++]=last;
+		}
+		else
+		{
+			line[nlines++]=next;
+			while(*next)
+			{
+				unsigned int ns=0;
+				while(*next&&strchr("\n\r", *next)) // look for double \ns
+				{
+					if(*next++=='\n') // count a newline
+						if(ns++) // if it was already nonzero
+						{
+							head=true; // then we've had a blank line, ie. end of the body
+							goto cont;
+						}
+				}
+				while(!strchr("\n\r", *next)) next++; // next now points at first \r, \n or \0.
+			}
+		}
+		cont:;
 	}
 	if(nlines==0)
 	{
 		fprintf(stderr, "%s[%d]: empty request!\n", name, getpid());
 		err(400, "Bad Request (Empty)", NULL, newhandle);
 		close(newhandle);
-		hfin(EXIT_SUCCESS); // we may not have sent a response, but /we/ didn't fail
+		hfin(EXIT_SUCCESS);
 		return(EXIT_SUCCESS);
 	}
 	char **n_line=realloc(line, nlines*sizeof(char *));
 	if(n_line)
 		line=n_line;
-	//
+	unsigned int l=0;
+	while(l<nlines)
+	{
+		// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
+		char *method=strtok(line[l], " ");
+		char *uri=strtok(NULL, " ");
+		char *ver=strtok(NULL, "");
+		char *host=NULL;
+		http_version v=get_version(ver);
+		if(v==HTTP_VERSION_UNKNOWN)
+		{
+			err(505, "HTTP Version Not Supported", NULL, newhandle);
+			fprintf(stderr, "%s[%d]: 505 HTTP Version Not Supported [%s]\n", name, getpid(), ver);
+			close(newhandle);
+			hfin(EXIT_SUCCESS); // success because it's an unrecognised version, not merely an unimplemented feature
+			return(EXIT_SUCCESS);
+		}
+		http_method m=get_method(method);
+		switch(m)
+		{
+			case HTTP_METHOD_GET:
+				if(*uri!='/')
+				{
+					if(strncmp(uri, "http://", 7)!=0)
+					{
+						fprintf(stderr, "%s[%d]: 400 Bad Request (Malformed URI) '%s'\n", name, getpid(), uri);
+						err(400, "Bad Request (Malformed URI)", NULL, newhandle);
+						close(newhandle);
+						hfin(EXIT_SUCCESS);
+						return(EXIT_SUCCESS);
+					}
+					else
+					{
+						// absoluteURI
+						host=uri+7;
+						char *slash=strchr(host, '/');
+						if(slash)
+						{
+							uri=slash+1;
+							*slash=0;
+						}
+						else
+							uri="/";
+					}
+				}
+			break;
+			case HTTP_METHOD_CONNECT:
+				err(501, "Not Supported", NULL, newhandle);
+				fprintf(stderr, "%s[%d]: 501 Not Supported (%s)\n", name, getpid(), method);
+				close(newhandle);
+				hfin(EXIT_SUCCESS); // success because it's an inapplicable method, not merely an unimplemented feature
+				return(EXIT_SUCCESS);
+			break;
+			case HTTP_METHOD_UNKNOWN:
+				err(501, "Unknown Method", NULL, newhandle);
+				fprintf(stderr, "%s[%d]: 501 Unknown Method (%s(\n", name, getpid(), method);
+				close(newhandle);
+				hfin(EXIT_SUCCESS); // success because it's an unrecognised method, not merely an unimplemented feature
+				return(EXIT_SUCCESS);
+			break;
+			default:
+				err(501, "Not Implemented", NULL, newhandle);
+				fprintf(stderr, "%s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				close(newhandle);
+				hfin(EXIT_FAILURE);
+				return(EXIT_FAILURE);
+			break;
+		}
+		struct hdr {http_header name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
+		if(!headers)
+		{
+			fprintf(stderr, "%s[%d]: allocation failure (struct hdr *headers): malloc:%s\n", name, getpid(), strerror(errno));
+			err(500, "Internal Server Error", NULL, newhandle);
+			close(newhandle);
+			hfin(EXIT_FAILURE);
+			return(EXIT_FAILURE);
+		}
+		unsigned int nhdrs=0;
+		for(;l<nlines;l++)
+		{
+			fprintf(stderr, "> %s\n", line[l]);
+			if(!*line[l])
+			{
+				// end of headers
+				break;
+			}
+			else
+			{
+				char *colon=strchr(line[l], ':');
+				if(colon)
+				{
+					*colon++=0;
+					http_header h=get_header(line[l]);
+					headers[nhdrs++]=(struct hdr){.name=h, .value=colon};
+				} // otherwise, we just ignore the line
+			}
+		}
+		// TODO: Generate appropriate response (ie. all the rest)
+		l++;
+	}
 	free(line);
 	free(buf);
 	//fprintf(stderr, "%s[%d]: \n", name, getpid());
