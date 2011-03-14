@@ -63,8 +63,7 @@ void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 		}
 		else
 		{
-			init_char(buf, l, i);
-			append_char(buf, l, i, c);
+			return;
 		}
 		char *nbuf=*buf;
 		if((*i)>=(*l))
@@ -80,7 +79,8 @@ void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 		else
 		{
 			free(*buf);
-			init_char(buf, l, i);
+			*buf=NULL;
+			return;
 		}
 	}
 }
@@ -114,8 +114,7 @@ void u_append_char(uchar_t **buf, unsigned int *l, unsigned int *i, uchar_t c)
 		}
 		else
 		{
-			u_init_char(buf, l, i);
-			u_append_char(buf, l, i, c);
+			return;
 		}
 		uchar_t *nbuf=*buf;
 		if((*i)>=(*l))
@@ -131,7 +130,8 @@ void u_append_char(uchar_t **buf, unsigned int *l, unsigned int *i, uchar_t c)
 		else
 		{
 			free(*buf);
-			u_init_char(buf, l, i);
+			*buf=NULL;
+			return;
 		}
 	}
 }
