@@ -313,7 +313,64 @@ int main(int argc, char **argv)
 				free_hmsg(h);
 				hsend(1, p);
 				free_hmsg(p);
-				// TODO: read proc's response
+				while(1)
+				{
+					char *fromproc=getl(STDIN_FILENO);
+					if(!(fromproc&&*fromproc))
+					{
+						fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+						err(500, "Internal Server Error", NULL, newhandle);
+						close(newhandle);
+						hfin(EXIT_FAILURE);
+						return(EXIT_FAILURE);
+					}
+					fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), fromproc);
+					h=hmsg_from_str(fromproc);
+					if(h)
+					{
+						free(fromproc);
+					}
+					else
+					{
+						fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from proc: %s\n", name, getpid(), fromproc);
+						err(500, "Internal Server Error", NULL, newhandle);
+						close(newhandle);
+						hfin(EXIT_FAILURE);
+						return(EXIT_FAILURE);
+					}
+					if(strcmp(h->funct, "proc"))
+					{
+						if(strcmp(h->funct, "shutdown")==0)
+						{
+							fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
+							err(503, "Service Unavailable", NULL, newhandle);
+							close(newhandle);
+							hfin(EXIT_SUCCESS);
+							return(EXIT_SUCCESS);
+						}
+						else if(strcmp(h->funct, "err")==0)
+						{
+							fprintf(stderr, "horde: %s[%d]: 500 - proc failed: %s\n", name, getpid(), h->funct);
+							unsigned int i;
+							for(i=0;i<h->nparms;i++)
+								fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
+							err(500, "Internal Server Error", NULL, newhandle);
+						}
+						free_hmsg(h);
+					}
+					else
+						break;
+				}
+				if(!h->data)
+				{
+					fprintf(stderr, "horde: %s[%d]: 500 - proc data is empty\n", name, getpid());
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				free_hmsg(h);
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
