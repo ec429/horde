@@ -225,7 +225,7 @@ int main(int argc, char **argv)
 				if(str)
 				{
 					fprintf(stderr, "%s[%d]: sending request to path\n", name, getpid());
-					printf("%s\n", str);
+					printf("%s\n", str);fflush(stdout);
 					free(str);
 				}
 				else
