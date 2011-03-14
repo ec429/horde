@@ -242,45 +242,60 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				char *frompath=getl(STDIN_FILENO);
-				if(!(frompath&&*frompath))
+				hmsg h=NULL;
+				while(1)
 				{
-					fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
-					err(500, "Internal Server Error", NULL, newhandle);
-					close(newhandle);
-					hfin(EXIT_FAILURE);
-					return(EXIT_FAILURE);
-				}
-				fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
-				hmsg h=hmsg_from_str(frompath);
-				if(h)
-				{
-					free(frompath);
-				}
-				else
-				{
-					fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from path: %s\n", name, getpid(), frompath);
-					err(500, "Internal Server Error", NULL, newhandle);
-					close(newhandle);
-					hfin(EXIT_FAILURE);
-					return(EXIT_FAILURE);
-				}
-				if(strcmp(h->funct, "path"))
-				{
-					if(strcmp(h->funct, "shutdown")==0)
+					char *frompath=getl(STDIN_FILENO);
+					if(!(frompath&&*frompath))
 					{
-						fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
-						err(503, "Service Unavailable", NULL, newhandle);
+						fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+						err(500, "Internal Server Error", NULL, newhandle);
+						close(newhandle);
+						hfin(EXIT_FAILURE);
+						return(EXIT_FAILURE);
+					}
+					fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
+					h=hmsg_from_str(frompath);
+					if(h)
+					{
+						free(frompath);
 					}
 					else
 					{
-						fprintf(stderr, "horde: %s[%d]: 500 - path rewriting failed: %s\n", name, getpid(), h->funct);
-						unsigned int i;
-						for(i=0;i<h->nparms;i++)
-							fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
-						fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
+						fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from path: %s\n", name, getpid(), frompath);
 						err(500, "Internal Server Error", NULL, newhandle);
+						close(newhandle);
+						hfin(EXIT_FAILURE);
+						return(EXIT_FAILURE);
 					}
+					if(strcmp(h->funct, "path"))
+					{
+						if(strcmp(h->funct, "shutdown")==0)
+						{
+							fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
+							err(503, "Service Unavailable", NULL, newhandle);
+							close(newhandle);
+							hfin(EXIT_SUCCESS);
+							return(EXIT_SUCCESS);
+						}
+						else if(strcmp(h->funct, "err")==0)
+						{
+							fprintf(stderr, "horde: %s[%d]: 500 - path rewriting failed: %s\n", name, getpid(), h->funct);
+							unsigned int i;
+							for(i=0;i<h->nparms;i++)
+								fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
+							err(500, "Internal Server Error", NULL, newhandle);
+						}
+						free_hmsg(h);
+					}
+					else
+						break;
+				}
+				if(!h->data)
+				{
+					fprintf(stderr, "horde: %s[%d]: 500 - path data is empty\n", name, getpid());
+					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);

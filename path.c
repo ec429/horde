@@ -40,6 +40,11 @@ int main(int argc, char **argv)
 					}
 				}
 				char *newpath=normalise_path(h->data);
+				if(newpath&&!*newpath)
+				{
+					free(newpath);
+					newpath=strdup("/");
+				}
 				if(!newpath)
 				{
 					hmsg r=new_hmsg("err", NULL);
@@ -50,13 +55,11 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					fprintf(stderr, "%s\n", newpath);
-					if(newpath[strlen(newpath)-1]=='\\')
-					{
-					}
-					hmsg r=new_hmsg("err", NULL);
+					hmsg r=new_hmsg("path", newpath);
+					if(from) add_htag(r, "to", from);
 					hsend(1, r);
 					free_hmsg(r);
+					free(newpath);
 				}
 			}
 			else if(strcmp(h->funct, "shutdown")==0)

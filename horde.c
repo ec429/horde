@@ -310,7 +310,7 @@ int main(int argc, char **argv)
 								{
 									if(strcmp(h->funct, "fin")==0)
 									{
-										fprintf(stderr, "horde: worker #%u finished, with status %s\n", w, h->data);
+										fprintf(stderr, "horde: worker #%u, %s[%u], finished with status %s\n", w, workers[w].name, workers[w].pid, h->data);
 										rmworker(&nworkers, &workers, w);
 										if(worker_set(nworkers, workers, &fdmax, &master))
 										{
@@ -319,23 +319,57 @@ int main(int argc, char **argv)
 									}
 									else if(strcmp(h->funct, "path")==0)
 									{
-										signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
-										if(wpath<0)
+										if(strcmp(workers[w].name, "path")==0)
 										{
-											fprintf(stderr, "horde: couldn't find or start \"path\" worker\n");
-											hmsg eh=new_hmsg("err", buf);
-											add_htag(eh, "what", "worker-init");
-											hsend(workers[w].pipe[1], eh);
-											if(eh) free_hmsg(eh);
+											unsigned int i;
+											for(i=0;i<h->nparms;i++)
+											{
+												if(strcmp(h->p_tag[i], "to")==0)
+												{
+													char *l=strchr(h->p_value[i], '[');
+													if(!l) continue;
+													char *r=strchr(l, ']');
+													if(!r) continue;
+													pid_t p;
+													if(sscanf(l, "[%d", &p)!=1) continue;
+													unsigned int who;
+													for(who=0;who<nworkers;who++)
+													{
+														if(strncmp(h->p_value[i], workers[who].name, l-h->p_value[i])) continue;
+														if(p==workers[who].pid)
+														{
+															fprintf(stderr, "horde: passing response on to #%u, %s[%u]\n", who, workers[who].name, workers[who].pid);
+															hsend(workers[who].pipe[1], h);
+															break;
+														}
+													}
+													if(who==nworkers)
+													{
+														fprintf(stderr, "horde: couldn't find recipient %s\n", h->p_value[i]);
+													}
+												}
+											}
 										}
 										else
 										{
-											fprintf(stderr, "horde: passing message on to #%u, path[%u]\n", wpath, workers[wpath].pid);
-											char from[32];
-											sprintf(from, "net[%u]", workers[w].pid);
-											add_htag(h, "from", from);
-											hsend(workers[wpath].pipe[1], h);
-											workers[w].awaiting=workers[wpath].pid;
+											signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
+											if(wpath<0)
+											{
+												fprintf(stderr, "horde: couldn't find or start \"path\" worker\n");
+												hmsg eh=new_hmsg("err", buf);
+												add_htag(eh, "what", "worker-init");
+												hsend(workers[w].pipe[1], eh);
+												if(eh) free_hmsg(eh);
+											}
+											else
+											{
+												fprintf(stderr, "horde: passing message on to #%u, path[%u]\n", wpath, workers[wpath].pid);
+												char *from=malloc(16+strlen(workers[w].name));
+												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
+												add_htag(h, "from", from);
+												hsend(workers[wpath].pipe[1], h);
+												workers[w].awaiting=workers[wpath].pid;
+											}
 										}
 									}
 									else
@@ -558,6 +592,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 				pid_t p=do_fork(handlers[h].prog, handlers[h].name, nworkers, workers, 0, &w);
 				if(p>0)
 				{
+					fprintf(stderr, "horde: started new instance of %s[%u], is #%u\n", name, p, w);
 					(*workers)[w].autoreplace=true;
 					if(worker_set(*nworkers, *workers, fdmax, fds))
 					{
