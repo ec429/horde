@@ -282,15 +282,14 @@ int main(int argc, char **argv)
 						case SOCK:
 							if(workers[w].wait<time(NULL))
 							{
-								unsigned int ww;
-								pid_t pid=do_fork("./net", "net", &nworkers, &workers, rfd, &ww);
+								pid_t pid=do_fork("./net", "net", &nworkers, &workers, rfd, NULL);
 								if(pid<1)
 								{
 									fprintf(stderr, "horde: request was not satisfied\n");
 								}
 								else
 								{
-									fprintf(stderr, "horde: passed on to new instance of net[%d], is #%u\n", pid, ww);
+									fprintf(stderr, "horde: passed on to new instance of net[%d]\n", pid);
 									workers[w].wait=time(NULL); // now no more connections for 1 second (to prevent running several copies of net)
 								}
 								if(worker_set(nworkers, workers, &fdmax, &master))
@@ -300,7 +299,7 @@ int main(int argc, char **argv)
 							}
 						break;
 						case NONE:
-							fprintf(stderr, "horde: data from worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
+							fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
 							if(*buf)
 							{
@@ -308,49 +307,48 @@ int main(int argc, char **argv)
 								hmsg h=hmsg_from_str(buf);
 								if(h)
 								{
-									if(strcmp(h->funct, "fin")==0)
+									bool to=false;
+									unsigned int i;
+									for(i=0;i<h->nparms;i++)
 									{
-										fprintf(stderr, "horde: worker #%u, %s[%u], finished with status %s\n", w, workers[w].name, workers[w].pid, h->data);
-										rmworker(&nworkers, &workers, w);
-										if(worker_set(nworkers, workers, &fdmax, &master))
+										if(strcmp(h->p_tag[i], "to")==0)
 										{
-											fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
-										}
-									}
-									else if(strcmp(h->funct, "path")==0)
-									{
-										if(strcmp(workers[w].name, "path")==0)
-										{
-											unsigned int i;
-											for(i=0;i<h->nparms;i++)
+											char *l=strchr(h->p_value[i], '[');
+											if(!l) continue;
+											char *r=strchr(l, ']');
+											if(!r) continue;
+											pid_t p;
+											if(sscanf(l, "[%d", &p)!=1) continue;
+											unsigned int who;
+											for(who=0;who<nworkers;who++)
 											{
-												if(strcmp(h->p_tag[i], "to")==0)
+												if(strncmp(h->p_value[i], workers[who].name, l-h->p_value[i])) continue;
+												if(p==workers[who].pid)
 												{
-													char *l=strchr(h->p_value[i], '[');
-													if(!l) continue;
-													char *r=strchr(l, ']');
-													if(!r) continue;
-													pid_t p;
-													if(sscanf(l, "[%d", &p)!=1) continue;
-													unsigned int who;
-													for(who=0;who<nworkers;who++)
-													{
-														if(strncmp(h->p_value[i], workers[who].name, l-h->p_value[i])) continue;
-														if(p==workers[who].pid)
-														{
-															fprintf(stderr, "horde: passing response on to #%u, %s[%u]\n", who, workers[who].name, workers[who].pid);
-															hsend(workers[who].pipe[1], h);
-															break;
-														}
-													}
-													if(who==nworkers)
-													{
-														fprintf(stderr, "horde: couldn't find recipient %s\n", h->p_value[i]);
-													}
+													fprintf(stderr, "horde: passing response on to %s[%u]\n", workers[who].name, workers[who].pid);
+													hsend(workers[who].pipe[1], h);
+													to=true;
+													break;
 												}
 											}
+											if(who==nworkers)
+											{
+												fprintf(stderr, "horde: couldn't find recipient %s\n", h->p_value[i]);
+											}
 										}
-										else
+									}
+									if(!to)
+									{
+										if(strcmp(h->funct, "fin")==0)
+										{
+											fprintf(stderr, "horde: %s[%u] finished with status %s\n", workers[w].name, workers[w].pid, h->data);
+											rmworker(&nworkers, &workers, w);
+											if(worker_set(nworkers, workers, &fdmax, &master))
+											{
+												fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
+											}
+										}
+										else if(strcmp(h->funct, "path")==0)
 										{
 											signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
 											if(wpath<0)
@@ -363,7 +361,7 @@ int main(int argc, char **argv)
 											}
 											else
 											{
-												fprintf(stderr, "horde: passing message on to #%u, path[%u]\n", wpath, workers[wpath].pid);
+												fprintf(stderr, "horde: passing message on to path[%u]\n", workers[wpath].pid);
 												char *from=malloc(16+strlen(workers[w].name));
 												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
 												add_htag(h, "from", from);
@@ -371,28 +369,28 @@ int main(int argc, char **argv)
 												workers[w].awaiting=workers[wpath].pid;
 											}
 										}
-									}
-									else
-									{
-										hmsg eh=new_hmsg("err", buf);
-										add_htag(eh, "what", "unrecognised-funct");
-										fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
-										hsend(workers[w].pipe[1], eh);
-										if(eh) free_hmsg(eh);
+										else
+										{
+											hmsg eh=new_hmsg("err", buf);
+											add_htag(eh, "what", "unrecognised-funct");
+											fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
+											hsend(workers[w].pipe[1], eh);
+											if(eh) free_hmsg(eh);
+										}
 									}
 									free_hmsg(h);
 								}
 								else
 								{
 									fprintf(stderr, "horde: couldn't understand the message\n");
-									//fprintf(stderr, "horde: \tfrom worker #%u, %s[%d] (fd=%u)\n", w, workers[w].prog, workers[w].pid, rfd);
-									//fprintf(stderr, "horde: \tdata '%s'\n", buf);
+									fprintf(stderr, "horde: \tfrom %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
+									fprintf(stderr, "horde: \tdata '%s'\n", buf);
 								}
 							}
 							else
 							{
 								perror("horde: read");
-								fprintf(stderr, "horde: worker #%u died unexpectedly\n", w);
+								fprintf(stderr, "horde: worker %s[%d] died unexpectedly\n", workers[w].name, workers[w].pid);
 								rmworker(&nworkers, &workers, w);
 								if(worker_set(nworkers, workers, &fdmax, &master))
 								{
@@ -469,7 +467,7 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 			hmsg dead=new_hmsg("err", NULL);
 			add_htag(dead, "what", "worker-died");
 			add_htag(dead, "worker-name", name);
-			fprintf(stderr, "horde: reporting death to #%u\n", w);
+			fprintf(stderr, "horde: reporting death to %s[%d]\n", (*workers)[w].name, (*workers)[w].pid);
 			hsend((*workers)[w].pipe[1], dead);
 			if(dead) free(dead);
 		}
@@ -592,7 +590,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 				pid_t p=do_fork(handlers[h].prog, handlers[h].name, nworkers, workers, 0, &w);
 				if(p>0)
 				{
-					fprintf(stderr, "horde: started new instance of %s[%u], is #%u\n", name, p, w);
+					fprintf(stderr, "horde: started new instance of %s[%u]\n", name, p);
 					(*workers)[w].autoreplace=true;
 					if(worker_set(*nworkers, *workers, fdmax, fds))
 					{

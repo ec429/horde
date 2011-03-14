@@ -300,19 +300,20 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				char *rpath=strdup(h->data);
-				if(!rpath)
+				fprintf(stderr, "horde: %s[%d]: sending request to proc for %s\n", name, getpid(), h->data);
+				hmsg p=new_hmsg("proc", h->data);
+				if(!p)
 				{
-					fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *path): strdup: %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg p): new_hmsg: %s\n", name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
 				free_hmsg(h);
-				fprintf(stderr, "%s\n", rpath);
-				// TODO: send the rpath to proc
-				free(rpath);
+				hsend(1, p);
+				free_hmsg(p);
+				// TODO: read proc's response
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
