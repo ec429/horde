@@ -180,6 +180,12 @@ int main(int argc, char **argv)
 			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
 			return(EXIT_FAILURE);
 		}
+		handler proc=(handler){.name="proc", .prog="./proc", .only=false};
+		if(add_handler(proc)<0)
+		{
+			fprintf(stderr, "horde: add_handler(\"proc\") failed\n");
+			return(EXIT_FAILURE);
+		}
 	}
 	signal(SIGPIPE, SIG_IGN);
 	printf("horde: started ok, listening on port %hu\n", port);
@@ -368,6 +374,27 @@ int main(int argc, char **argv)
 												add_htag(h, "from", from);
 												hsend(workers[wpath].pipe[1], h);
 												workers[w].awaiting=workers[wpath].pid;
+											}
+										}
+										else if(strcmp(h->funct, "proc")==0)
+										{
+											signed int wproc=find_worker(&nworkers, &workers, "proc", true, &fdmax, &master);
+											if(wproc<0)
+											{
+												fprintf(stderr, "horde: couldn't find or start \"proc\" worker\n");
+												hmsg eh=new_hmsg("err", buf);
+												add_htag(eh, "what", "worker-init");
+												hsend(workers[w].pipe[1], eh);
+												if(eh) free_hmsg(eh);
+											}
+											else
+											{
+												fprintf(stderr, "horde: passing message on to proc[%u]\n", workers[wproc].pid);
+												char *from=malloc(16+strlen(workers[w].name));
+												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
+												add_htag(h, "from", from);
+												hsend(workers[wproc].pipe[1], h);
+												workers[w].awaiting=workers[wproc].pid;
 											}
 										}
 										else
