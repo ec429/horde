@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 				if(strstr(h->data, "/../"))
 				{
 					hmsg r=new_hmsg("err", NULL);
-					add_htag(r, "what", "illegal-path");
+					add_htag(r, "what", "illegal-path"); // this shouldn't ever happen, hence why we report instead of giving a 4xx
 					if(from) add_htag(r, "to", from);
 					hsend(1, r);
 					free_hmsg(r);
@@ -67,14 +67,20 @@ int main(int argc, char **argv)
 						FILE *fp=fopen(path, "r");
 						if(!fp)
 						{
-							hmsg r=new_hmsg("err", NULL);
-							add_htag(r, "what", "open-failure");
-							char en[9];en[8]=0;
-							hputlong(en, errno);
-							add_htag(r, "errno", en);
-							if(from) add_htag(r, "to", from);
-							hsend(1, r);
-							free_hmsg(r);
+							hmsg r;
+							switch(errno)
+							{
+								default:
+									r=new_hmsg("err", NULL);
+									add_htag(r, "what", "open-failure");
+									char en[16];
+									hputlong(en, errno);
+									add_htag(r, "errno", en);
+									if(from) add_htag(r, "to", from);
+									hsend(1, r);
+									free_hmsg(r);
+								break;
+							}
 						}
 						else
 						{

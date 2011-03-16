@@ -356,7 +356,13 @@ int main(int argc, char **argv)
 							fprintf(stderr, "horde: %s[%d]: 500 - proc failed: %s\n", name, getpid(), h->funct);
 							unsigned int i;
 							for(i=0;i<h->nparms;i++)
+							{
 								fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+								if(strcmp(h->p_tag[i], "errno")==0)
+								{
+									fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h->p_value[i])));
+								}
+							}
 							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
 							err(500, "Internal Server Error", NULL, newhandle);
 						}

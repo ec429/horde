@@ -47,15 +47,13 @@ char *hex_decode(const char *src, size_t srclen)
 
 void hputlong(char *buf, unsigned long val)
 {
-	sprintf(buf, "%08lx", val);
+	snprintf(buf, 16, "%lu", val);
 }
 
 unsigned long hgetlong(const char *buf)
 {
-	char *b=hex_decode(buf, 8);
-	if(!b) return(-1);
-	unsigned long rv=(buf[0]<<24)|(buf[1]<<16)|(buf[2]<<8)|buf[3];
-	free(b);
+	unsigned long rv;
+	sscanf(buf, "%lu", &rv);
 	return(rv);
 }
 
