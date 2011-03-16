@@ -45,6 +45,19 @@ char *hex_decode(const char *src, size_t srclen)
 	return(rv);
 }
 
+void putlong(char *buf, unsigned long val)
+{
+	buf[0]=(val>>24)&0xFF;
+	buf[1]=(val>>16)&0xFF;
+	buf[2]=(val>>8)&0xFF;
+	buf[3]=(val)&0xFF;
+}
+
+unsigned long getlong(const char *buf)
+{
+	return((buf[0]<<24)|(buf[1]<<16)|(buf[2]<<8)|buf[3]);
+}
+
 hmsg new_hmsg(const char *funct, const char *data)
 {
 	hmsg rv=malloc(sizeof(*rv));
