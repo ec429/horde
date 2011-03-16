@@ -383,6 +383,10 @@ int main(int argc, char **argv)
 								}
 								else
 								{
+									hmsg eh=new_hmsg("err", buf);
+									add_htag(eh, "what", "parse-fail");
+									hsend(workers[w].pipe[1], eh);
+									if(eh) free_hmsg(eh);
 									fprintf(stderr, "horde: couldn't understand the message\n");
 									fprintf(stderr, "horde: \tfrom %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
 									fprintf(stderr, "horde: \tdata '%s'\n", buf);
