@@ -32,8 +32,8 @@ typedef struct
 char *hex_encode(const char *src, size_t srclen);
 char *hex_decode(const char *src, size_t srclen);
 
-void putlong(char *buf, unsigned long val);
-unsigned long getlong(const char *buf);
+void hputlong(char *buf, unsigned long val);
+unsigned long hgetlong(const char *buf);
 
 hmsg new_hmsg(const char *funct, const char *data);
 int add_htag(hmsg h, const char *p_tag, const char *p_value);

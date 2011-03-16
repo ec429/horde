@@ -69,8 +69,8 @@ int main(int argc, char **argv)
 						{
 							hmsg r=new_hmsg("err", NULL);
 							add_htag(r, "what", "open-failure");
-							char en[5];
-							putlong(en, errno);
+							char en[9];en[8]=0;
+							hputlong(en, errno);
 							add_htag(r, "errno", en);
 							if(from) add_htag(r, "to", from);
 							hsend(1, r);

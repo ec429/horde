@@ -37,25 +37,26 @@ char *hex_decode(const char *src, size_t srclen)
 	{
 		unsigned int c;
 		const char hex[3]={src[p], src[p+1], 0};
-		if(!isxdigit(hex[0])) return(rv);
-		if(!isxdigit(hex[1])) return(rv);
+		if(!isxdigit(hex[0])) {free(rv); return(NULL);}
+		if(!isxdigit(hex[1])) {free(rv); return(NULL);}
 		sscanf(hex, "%02x", &c);
 		append_char(&rv, &l, &i, (unsigned char)c);
 	}
 	return(rv);
 }
 
-void putlong(char *buf, unsigned long val)
+void hputlong(char *buf, unsigned long val)
 {
-	buf[0]=(val>>24)&0xFF;
-	buf[1]=(val>>16)&0xFF;
-	buf[2]=(val>>8)&0xFF;
-	buf[3]=(val)&0xFF;
+	sprintf(buf, "%08lx", val);
 }
 
-unsigned long getlong(const char *buf)
+unsigned long hgetlong(const char *buf)
 {
-	return((buf[0]<<24)|(buf[1]<<16)|(buf[2]<<8)|buf[3]);
+	char *b=hex_decode(buf, 8);
+	if(!b) return(-1);
+	unsigned long rv=(buf[0]<<24)|(buf[1]<<16)|(buf[2]<<8)|buf[3];
+	free(b);
+	return(rv);
 }
 
 hmsg new_hmsg(const char *funct, const char *data)
