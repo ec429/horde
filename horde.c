@@ -183,7 +183,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
 			return(EXIT_FAILURE);
 		}
-		handler proc=(handler){.name="proc", .prog="./proc", .n_init=1, .only=false};
+		handler proc=(handler){.name="proc", .prog="./proc", .n_init=2, .only=false};
 		proc.init=malloc(proc.n_init*sizeof(hmsg));
 		if(!proc.init)
 		{
@@ -194,6 +194,12 @@ int main(int argc, char **argv)
 		if(!proc.init[0])
 		{
 			fprintf(stderr, "horde: allocation failure (proc.init[0]): new_hmsg: %s\n", strerror(errno));
+			return(EXIT_FAILURE);
+		}
+		proc.init[1]=new_hmsg("pipeline", NULL);
+		if(!proc.init[1])
+		{
+			fprintf(stderr, "horde: allocation failure (proc.init[1]): new_hmsg: %s\n", strerror(errno));
 			return(EXIT_FAILURE);
 		}
 		if(add_handler(proc)<0)
@@ -368,7 +374,14 @@ int main(int argc, char **argv)
 											}
 										}
 									}
-									if(!to)
+									if(to)
+									{
+										if(strcmp(h->funct, "proc")==0)
+										{
+											workers[w].accepting=true;
+										}
+									}
+									else
 									{
 										if(strcmp(h->funct, "fin")==0)
 										{
@@ -405,7 +418,7 @@ int main(int argc, char **argv)
 											signed int wproc=find_worker(&nworkers, &workers, "proc", true, &fdmax, &master);
 											if(wproc<0)
 											{
-												fprintf(stderr, "horde: couldn't start \"proc\" worker\n");
+												fprintf(stderr, "horde: couldn't find or start \"proc\" worker\n");
 												hmsg eh=new_hmsg("err", buf);
 												add_htag(eh, "what", "worker-init");
 												hsend(workers[w].pipe[1], eh);
@@ -419,6 +432,7 @@ int main(int argc, char **argv)
 												add_htag(h, "from", from);
 												hsend(workers[wproc].pipe[1], h);
 												workers[w].awaiting=workers[wproc].pid;
+												workers[wproc].accepting=false;
 											}
 										}
 										else if(strcmp(h->funct, "ext")==0)
@@ -682,7 +696,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 	unsigned int w;
 	for(w=0;w<*nworkers;w++)
 	{
-		if(!(*workers)[w].autoreplace) continue;
+		if(!(*workers)[w].accepting) continue;
 		if(strcmp((*workers)[w].name, name)==0)
 			return(w);
 	}
@@ -698,6 +712,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 				{
 					fprintf(stderr, "horde: started new instance of %s[%u]\n", name, p);
 					(*workers)[w].autoreplace=handlers[h].only;
+					(*workers)[w].accepting=true;
 					if(worker_set(*nworkers, *workers, fdmax, fds))
 					{
 						fprintf(stderr, "horde: worker_set failed, bad things may happen\n");

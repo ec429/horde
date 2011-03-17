@@ -22,6 +22,7 @@ int main(int argc, char **argv)
 {
 	const char *name=argc?argv[0]:"proc";
 	char *root=strdup("root");
+	bool pipeline=false;
 	int errupt=0;
 	while(!errupt)
 	{
@@ -378,8 +379,15 @@ int main(int argc, char **argv)
 					}
 					free(path);
 				}
-				fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
-				errupt++;
+				if(pipeline)
+				{
+					fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
+				}
+				else
+				{
+					fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
+					errupt++;
+				}
 			}
 			else if(strcmp(h->funct, "shutdown")==0)
 			{
@@ -422,6 +430,30 @@ int main(int argc, char **argv)
 					root=nr;
 					fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", name, getpid(), root);
 				}
+			}
+			else if(strcmp(h->funct, "pipeline")==0)
+			{
+				if(h->data)
+				{
+					if(strcmp(h->data, "false")==0)
+						pipeline=false;
+					else if(strcmp(h->data, "true")==0)
+						pipeline=true;
+					else
+					{
+						hmsg eh=new_hmsg("err", inp);
+						if(eh)
+						{
+							add_htag(eh, "what", "invalid-data");
+							add_htag(eh, "expected", "bool");
+							if(from) add_htag(eh, "to", from);
+							hsend(1, eh);
+							free_hmsg(eh);
+						}
+					}
+				}
+				else
+					pipeline=true;
 			}
 			else
 			{
