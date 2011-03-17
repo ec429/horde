@@ -53,35 +53,55 @@ char * slurp(FILE *fp)
 	return(lout);
 }
 
+ssize_t hslurp(FILE *fp, char **buf)
+{
+	if(!buf) return(-1);
+	char * lout;
+	unsigned int l,i,b=0;
+	init_char(&lout, &l, &i);
+	signed int c;
+	while(!feof(fp))
+	{
+		c=fgetc(fp);
+		if(c==EOF)
+			break;
+		char hex[3];
+		snprintf(hex, 3, "%02x", c);
+		append_str(&lout, &l, &i, hex);
+		b++;
+	}
+	*buf=lout;
+	if(lout)
+		return(b);
+	return(-1);
+}
+
 void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 {
-	if(!((c==0)||(c==EOF)))
+	if(*buf)
 	{
-		if(*buf)
-		{
-			(*buf)[(*i)++]=c;
-		}
-		else
-		{
-			return;
-		}
-		char *nbuf=*buf;
-		if((*i)>=(*l))
-		{
-			*l=1+*i*2;
-			nbuf=realloc(*buf, *l);
-		}
-		if(nbuf)
-		{
-			*buf=nbuf;
-			(*buf)[*i]=0;
-		}
-		else
-		{
-			free(*buf);
-			*buf=NULL;
-			return;
-		}
+		(*buf)[(*i)++]=c;
+	}
+	else
+	{
+		return;
+	}
+	char *nbuf=*buf;
+	if((*i)>=(*l))
+	{
+		*l=1+*i*2;
+		nbuf=realloc(*buf, *l);
+	}
+	if(nbuf)
+	{
+		*buf=nbuf;
+		(*buf)[*i]=0;
+	}
+	else
+	{
+		free(*buf);
+		*buf=NULL;
+		return;
 	}
 }
 

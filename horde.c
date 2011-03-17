@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 	nhandlers=0;
 	handlers=NULL;
 	{
-		handler path=(handler){.name="path", .prog="./path", .n_init=0, .only=false};
+		handler path=(handler){.name="path", .prog="./path", .n_init=0, .only=true};
 		if(add_handler(path)<0)
 		{
 			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
@@ -199,6 +199,12 @@ int main(int argc, char **argv)
 		if(add_handler(proc)<0)
 		{
 			fprintf(stderr, "horde: add_handler(\"proc\") failed\n");
+			return(EXIT_FAILURE);
+		}
+		handler ext=(handler){.name="ext", .prog="./ext", .n_init=0, .only=true};
+		if(add_handler(ext)<0)
+		{
+			fprintf(stderr, "horde: add_handler(\"ext\") failed\n");
 			return(EXIT_FAILURE);
 		}
 	}
@@ -321,8 +327,8 @@ int main(int argc, char **argv)
 								}
 							}
 						break;
-						case NONE:
-							fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
+						case NONE:;
+							//fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
 							if(*buf)
 							{
@@ -349,6 +355,8 @@ int main(int argc, char **argv)
 												if(p==workers[who].pid)
 												{
 													fprintf(stderr, "horde: passing response on to %s[%u]\n", workers[who].name, workers[who].pid);
+													if(workers[who].awaiting==workers[w].pid)
+														workers[who].awaiting=0;
 													hsend(workers[who].pipe[1], h);
 													to=true;
 													break;
@@ -397,7 +405,7 @@ int main(int argc, char **argv)
 											signed int wproc=find_worker(&nworkers, &workers, "proc", true, &fdmax, &master);
 											if(wproc<0)
 											{
-												fprintf(stderr, "horde: couldn't find or start \"proc\" worker\n");
+												fprintf(stderr, "horde: couldn't start \"proc\" worker\n");
 												hmsg eh=new_hmsg("err", buf);
 												add_htag(eh, "what", "worker-init");
 												hsend(workers[w].pipe[1], eh);
@@ -411,6 +419,27 @@ int main(int argc, char **argv)
 												add_htag(h, "from", from);
 												hsend(workers[wproc].pipe[1], h);
 												workers[w].awaiting=workers[wproc].pid;
+											}
+										}
+										else if(strcmp(h->funct, "ext")==0)
+										{
+											signed int wext=find_worker(&nworkers, &workers, "ext", true, &fdmax, &master);
+											if(wext<0)
+											{
+												fprintf(stderr, "horde: couldn't find or start \"ext\" worker\n");
+												hmsg eh=new_hmsg("err", buf);
+												add_htag(eh, "what", "worker-init");
+												hsend(workers[w].pipe[1], eh);
+												if(eh) free_hmsg(eh);
+											}
+											else
+											{
+												fprintf(stderr, "horde: passing message on to ext[%u]\n", workers[wext].pid);
+												char *from=malloc(16+strlen(workers[w].name));
+												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
+												add_htag(h, "from", from);
+												hsend(workers[wext].pipe[1], h);
+												workers[w].awaiting=workers[wext].pid;
 											}
 										}
 										else if(strcmp(h->funct, "accepted")==0)
@@ -653,6 +682,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 	unsigned int w;
 	for(w=0;w<*nworkers;w++)
 	{
+		if(!(*workers)[w].autoreplace) continue;
 		if(strcmp((*workers)[w].name, name)==0)
 			return(w);
 	}
@@ -667,7 +697,7 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 				if(p>0)
 				{
 					fprintf(stderr, "horde: started new instance of %s[%u]\n", name, p);
-					(*workers)[w].autoreplace=true;
+					(*workers)[w].autoreplace=handlers[h].only;
 					if(worker_set(*nworkers, *workers, fdmax, fds))
 					{
 						fprintf(stderr, "horde: worker_set failed, bad things may happen\n");

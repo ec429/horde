@@ -13,6 +13,7 @@ typedef uint32_t uchar_t;
 
 char * fgetl(FILE *); // gets a line of string data; returns a malloc-like pointer
 char * slurp(FILE *); // reads an entire file up to EOF; returns a malloc-like pointer
+ssize_t hslurp(FILE *fp, char **buf); // reads a binary file up to EOF; returns size and places malloc-like pointer to hex data in buf
 char * getl(int fd); // like fgetl but with a file descriptor instead of a handle
 void init_char(char **buf, unsigned int *l, unsigned int *i); // initialises a string buffer in heap.  *buf becomes a malloc-like pointer
 void append_char(char **buf, unsigned int *l, unsigned int *i, char c); // adds a character to a string buffer in heap (and realloc()s if needed)

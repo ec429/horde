@@ -140,7 +140,6 @@ int main(int argc, char **argv)
 		if(n_line)
 			line=n_line;
 		// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
-		fprintf(stderr, "> %s\n", line[0]);
 		char *method=strtok(line[0], " ");
 		char *uri=strtok(NULL, " ");
 		char *ver=strtok(NULL, "");
@@ -217,7 +216,7 @@ int main(int argc, char **argv)
 		unsigned int l, nhdrs=0;
 		for(l=1;l<nlines;l++)
 		{
-			fprintf(stderr, "> %s\n", line[l]);
+			//fprintf(stderr, "> %s\n", line[l]);
 			char *colon=strchr(line[l], ':');
 			if(colon)
 			{
@@ -232,6 +231,7 @@ int main(int argc, char **argv)
 		switch(m)
 		{
 			case HTTP_METHOD_GET:;
+				fprintf(stderr, "horde: %s[%d]: handling GET request (%s) (%u headers)\n", name, getpid(), uri, nhdrs);
 				hmsg path=new_hmsg("path", uri);
 				if(!path)
 				{
@@ -356,6 +356,21 @@ int main(int argc, char **argv)
 					return(EXIT_FAILURE);
 				}
 				free_hmsg(h);
+				unsigned int hdr;
+				for(hdr=0;hdr<nhdrs;hdr++)
+				{
+					char *hline=malloc(strlen(headers[hdr].un_name)+strlen(headers[hdr].value)+3);
+					if(hline)
+					{
+						sprintf(hline, "%s: %s", headers[hdr].un_name, headers[hdr].value);
+						add_htag(p, "rqheader", hline);
+						free(hline);
+					}
+					else
+					{
+						fprintf(stderr, "horde: %s[%d]: ign - allocation failure (char *hline): malloc: %s\n", name, getpid(), strerror(errno));
+					}
+				}
 				hsend(1, p);
 				free_hmsg(p);
 				while(1)
@@ -417,6 +432,9 @@ int main(int argc, char **argv)
 							}
 							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
 							err(500, "Internal Server Error", NULL, newhandle);
+							close(newhandle);
+							hfin(EXIT_FAILURE);
+							return(EXIT_FAILURE);
 						}
 						else
 						{
@@ -437,6 +455,7 @@ int main(int argc, char **argv)
 				}
 				unsigned short status=200;
 				const char *statusmsg=NULL;
+				unsigned long length=0;
 				unsigned int i;
 				for(i=0;i<h->nparms;i++)
 				{
@@ -449,6 +468,10 @@ int main(int argc, char **argv)
 					else if(strcmp(h->p_tag[i], "statusmsg")==0)
 					{
 						statusmsg=h->p_value[i];
+					}
+					else if(strcmp(h->p_tag[i], "length")==0)
+					{
+						length=hgetlong(h->p_value[i]);
 					}
 				}
 				if(!statusmsg)
@@ -468,7 +491,7 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %zu\n", status, statusmsg, date, server, h->data?strlen(h->data):0);
+				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %lu\n", status, statusmsg, date, server, h->data?length:0);
 				ssize_t n=sendall(newhandle, head, strlen(head), 0);
 				if(n)
 				{
@@ -502,7 +525,8 @@ int main(int argc, char **argv)
 				sendall(newhandle, "\n", 1, 0);
 				if(h->data) // otherwise assume status does not require one
 				{
-					n=sendall(newhandle, h->data, strlen(h->data), 0);
+					char *data=hex_decode(h->data, strlen(h->data));
+					n=sendall(newhandle, data, length, 0);
 					if(n)
 					{
 						fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd\n", name, getpid(), n);
