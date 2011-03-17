@@ -135,7 +135,30 @@ char *str_from_hmsg(const hmsg h)
 		append_str(&rv, &l, &i, h->p_tag&&h->p_tag[p]?h->p_tag[p]:"(nil)");
 		if(h->p_value&&h->p_value[p])
 		{
-			char *val=hex_encode(h->p_value[p], strlen(h->p_value[p]));
+			if((h->p_value[p][0]=='#') || (strpbrk(h->p_value[p], "( )")))
+			{
+				char *val=hex_encode(h->p_value[p], strlen(h->p_value[p]));
+				if(val)
+				{
+					append_char(&rv, &l, &i, ' ');
+					append_char(&rv, &l, &i, '#');
+					append_str(&rv, &l, &i, val);
+					free(val);
+				}
+			}
+			else
+			{
+				append_char(&rv, &l, &i, ' ');
+				append_str(&rv, &l, &i, h->p_value[p]);
+			}
+		}
+		append_char(&rv, &l, &i, ')');
+	}
+	if(h->data)
+	{
+		if((h->data[0]=='#') || (strpbrk(h->data, "( )")))
+		{
+			char *val=hex_encode(h->data, strlen(h->data));
 			if(val)
 			{
 				append_char(&rv, &l, &i, ' ');
@@ -144,17 +167,10 @@ char *str_from_hmsg(const hmsg h)
 				free(val);
 			}
 		}
-		append_char(&rv, &l, &i, ')');
-	}
-	if(h->data)
-	{
-		char *val=hex_encode(h->data, strlen(h->data));
-		if(val)
+		else
 		{
 			append_char(&rv, &l, &i, ' ');
-			append_char(&rv, &l, &i, '#');
-			append_str(&rv, &l, &i, val);
-			free(val);
+			append_str(&rv, &l, &i, h->data);
 		}
 	}
 	append_char(&rv, &l, &i, ')');

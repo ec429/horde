@@ -5,7 +5,7 @@ Is the initial process, holds the listen()ing socket, has a pipe() to each child
 When a request comes in on socket, fork() a 'net' process
 When a request comes in over a pipe, fork() whatever process is registered to handle it
 
-Example Transcript; {} denotes hex-encoding.  Internally generated messages are always hex-encoded; user-input ones may not be
+Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces.  User-input data may be hex-encoded unnecessarily.
 disp fork() exec(path)
 disp fork() exec(stats)
 C>disp connect
