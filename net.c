@@ -510,6 +510,15 @@ int main(int argc, char **argv)
 					{
 						length=hgetlong(h->p_value[i]);
 					}
+					else if(strcmp(h->p_tag[i], "read")==0)
+					{
+						FILE *fp=fopen(h->p_value[i], "r");
+						if(fp)
+						{
+							if(h->data) free(h->data);
+							hslurp(fp, &h->data);
+						}
+					}
 				}
 				if(!statusmsg)
 					statusmsg=http_statusmsg(status);

@@ -334,6 +334,7 @@ int main(int argc, char **argv)
 								{
 									content_type=strdup("text/plain");
 								}
+								bool processed=false;
 								char *buf;
 								ssize_t length=hslurp(fp, &buf);
 								fclose(fp);
@@ -347,6 +348,11 @@ int main(int argc, char **argv)
 								}
 								else
 								{
+									if((!processed)&&(length>(1<<16)))
+									{
+										free(buf);
+										buf=NULL;
+									}
 									hmsg r=new_hmsg("proc", buf);
 									char st[9];
 									hputshort(st, status);
@@ -367,6 +373,8 @@ int main(int argc, char **argv)
 									hputlong(ln, length);
 									add_htag(r, "length", ln);
 									if(from) add_htag(r, "to", from);
+									if((!processed)&&(length>(1<<16)))
+										add_htag(r, "read", path);
 									hsend(1, r);
 									free(buf);
 									free_hmsg(r);
