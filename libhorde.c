@@ -141,6 +141,7 @@ char *str_from_hmsg(const hmsg h)
 				append_char(&rv, &l, &i, ' ');
 				append_char(&rv, &l, &i, '#');
 				append_str(&rv, &l, &i, val);
+				free(val);
 			}
 		}
 		append_char(&rv, &l, &i, ')');
@@ -153,6 +154,7 @@ char *str_from_hmsg(const hmsg h)
 			append_char(&rv, &l, &i, ' ');
 			append_char(&rv, &l, &i, '#');
 			append_str(&rv, &l, &i, val);
+			free(val);
 		}
 	}
 	append_char(&rv, &l, &i, ')');
