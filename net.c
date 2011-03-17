@@ -30,6 +30,8 @@ void err(unsigned int status, const char *statusmsg, const char *headers, int fd
 int main(int argc, char **argv)
 {
 	const char *name=argc?argv[0]:"net";
+	char *server=malloc(6+strlen(HTTPD_VERSION)+7+1);
+	sprintf(server, "horde/%s (Unix)", HTTPD_VERSION);
 	int newhandle;
 	struct sockaddr remote;
 	socklen_t addr_size=sizeof(remote);
@@ -124,6 +126,7 @@ int main(int argc, char **argv)
 		if(n_line)
 			line=n_line;
 		// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
+		fprintf(stderr, "> %s\n", line[0]);
 		char *method=strtok(line[0], " ");
 		char *uri=strtok(NULL, " ");
 		char *ver=strtok(NULL, "");
@@ -341,6 +344,16 @@ int main(int argc, char **argv)
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
+					const char *from=NULL;
+					unsigned int i;
+					for(i=0;i<h->nparms;i++)
+					{
+						if(strcmp(h->p_tag[i], "from")==0)
+						{
+							from=h->p_value[i];
+							break;
+						}
+					}
 					if(strcmp(h->funct, "proc"))
 					{
 						if(strcmp(h->funct, "shutdown")==0)
@@ -366,6 +379,18 @@ int main(int argc, char **argv)
 							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
 							err(500, "Internal Server Error", NULL, newhandle);
 						}
+						else
+						{
+							fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+							hmsg eh=new_hmsg("err", fromproc);
+							if(eh)
+							{
+								add_htag(eh, "what", "unrecognised-funct");
+								if(from) add_htag(eh, "to", from);
+								hsend(1, eh);
+								free_hmsg(eh);
+							}
+						}
 						free_hmsg(h);
 					}
 					else
@@ -387,28 +412,70 @@ int main(int argc, char **argv)
 						statusmsg=h->p_value[i];
 					}
 				}
-				if(!h->data)
+				/*if(!h->data)
 				{
 					fprintf(stderr, "horde: %s[%d]: 500 - proc data is empty\n", name, getpid());
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
-				}
+				}*/
 				if(!statusmsg)
 					statusmsg=http_statusmsg(status);
 				if(!statusmsg)
 					statusmsg="???";
-				char *line=malloc(9+8+strlen(statusmsg)+2);
-				sprintf(line, "HTTP/1.1 %hu %s\r\n", status, statusmsg);
-				sendall(newhandle, line, strlen(line), 0);
-				//
+				char date[256];
+				time_t timer = time(NULL);
+				struct tm *tm = gmtime(&timer);
+				size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
+				char *head=malloc(9+8+strlen(statusmsg)+1+6+datelen+1+8+strlen(server)+1+16+16+1+1);
+				if(!head)
+				{
+					fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *head): malloc: %s\n", name, getpid(), strerror(errno));
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %zu\n", status, statusmsg, date, server, h->data?strlen(h->data):0);
+				ssize_t n=sendall(newhandle, head, strlen(head), 0);
+				if(n)
+				{
+					fprintf(stderr, "horde: %s[%d]: 499 - sendall(head) failed, %zd\n", name, getpid(), n);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				free(head);
+				for(i=0;i<h->nparms;i++)
+				{
+					if(strcmp(h->p_tag[i], "header")==0)
+					{
+						n=sendall(newhandle, h->p_value[i], strlen(h->p_value[i]), 0);
+						if(n)
+						{
+							fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header) failed, %zd\n", name, getpid(), n);
+							close(newhandle);
+							hfin(EXIT_FAILURE);
+							return(EXIT_FAILURE);
+						}
+					}
+				}
+				sendall(newhandle, "\n", 1, 0);
+				if(h->data) // otherwise assume status does not require one
+				{
+					n=sendall(newhandle, h->data, strlen(h->data), 0);
+					if(n)
+					{
+						fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd\n", name, getpid(), n);
+						close(newhandle);
+						hfin(EXIT_FAILURE);
+						return(EXIT_FAILURE);
+					}
+				}
 				/*
-Date: %s\n\
-Server: "HTTPD_VERSION" (Unix)\n\
-Content-Length: 0\n\
 %s\
-Connection: close\n\*/
+*/
 				free_hmsg(h);
 			break;
 			default:

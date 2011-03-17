@@ -27,18 +27,18 @@ int main(int argc, char **argv)
 		hmsg h=hmsg_from_str(inp);
 		if(h)
 		{
+			const char *from=NULL;
+			unsigned int i;
+			for(i=0;i<h->nparms;i++)
+			{
+				if(strcmp(h->p_tag[i], "from")==0)
+				{
+					from=h->p_value[i];
+					break;
+				}
+			}
 			if(strcmp(h->funct, "path")==0)
 			{
-				const char *from=NULL;
-				unsigned int i;
-				for(i=0;i<h->nparms;i++)
-				{
-					if(strcmp(h->p_tag[i], "from")==0)
-					{
-						from=h->p_value[i];
-						break;
-					}
-				}
 				char *newpath=normalise_path(h->data);
 				if(newpath&&!*newpath)
 				{
@@ -66,6 +66,18 @@ int main(int argc, char **argv)
 			{
 				fprintf(stderr, "horde: %s[%d]: server is shutting down\n", name, getpid());
 				errupt++;
+			}
+			else
+			{
+				fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+				hmsg eh=new_hmsg("err", inp);
+				if(eh)
+				{
+					add_htag(eh, "what", "unrecognised-funct");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
 			}
 			free_hmsg(h);
 		}

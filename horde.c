@@ -30,6 +30,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <errno.h>
 
 #include "bits.h"
 #include "libhorde.h"
@@ -49,6 +50,8 @@ worker;
 typedef struct
 {
 	const char *name, *prog;
+	unsigned int n_init;
+	hmsg *init;
 	bool only; // only run one instance of this worker?
 }
 handler;
@@ -174,13 +177,25 @@ int main(int argc, char **argv)
 	nhandlers=0;
 	handlers=NULL;
 	{
-		handler path=(handler){.name="path", .prog="./path", .only=false};
+		handler path=(handler){.name="path", .prog="./path", .n_init=0, .only=false};
 		if(add_handler(path)<0)
 		{
 			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
 			return(EXIT_FAILURE);
 		}
-		handler proc=(handler){.name="proc", .prog="./proc", .only=false};
+		handler proc=(handler){.name="proc", .prog="./proc", .n_init=1, .only=false};
+		proc.init=malloc(proc.n_init*sizeof(hmsg));
+		if(!proc.init)
+		{
+			fprintf(stderr, "horde: allocation failure (proc.init): malloc: %s\n", strerror(errno));
+			return(EXIT_FAILURE);
+		}
+		proc.init[0]=new_hmsg("root", root);
+		if(!proc.init[0])
+		{
+			fprintf(stderr, "horde: allocation failure (proc.init[0]): new_hmsg: %s\n", strerror(errno));
+			return(EXIT_FAILURE);
+		}
 		if(add_handler(proc)<0)
 		{
 			fprintf(stderr, "horde: add_handler(\"proc\") failed\n");
@@ -397,13 +412,29 @@ int main(int argc, char **argv)
 												workers[w].awaiting=workers[wproc].pid;
 											}
 										}
+										else if(strcmp(h->funct, "err")==0)
+										{
+											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
+											for(i=0;i<h->nparms;i++)
+											{
+												fprintf(stderr, "horde:\t(%s|%s)\n", h->p_tag[i], h->p_value[i]);
+												if(strcmp(h->p_tag[i], "errno")==0)
+												{
+													fprintf(stderr, "horde:\t\t%s\n", strerror(hgetlong(h->p_value[i])));
+												}
+												fprintf(stderr, "horde:\t%s\n", h->data);
+											}
+										}
 										else
 										{
-											hmsg eh=new_hmsg("err", buf);
-											add_htag(eh, "what", "unrecognised-funct");
 											fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
-											hsend(workers[w].pipe[1], eh);
-											if(eh) free_hmsg(eh);
+											hmsg eh=new_hmsg("err", buf);
+											if(eh)
+											{
+												add_htag(eh, "what", "unrecognised-funct");
+												hsend(workers[w].pipe[1], eh);
+												if(eh) free_hmsg(eh);
+											}
 										}
 									}
 									free_hmsg(h);
@@ -627,6 +658,11 @@ signed int find_worker(unsigned int *nworkers, worker **workers, const char *nam
 					if(worker_set(*nworkers, *workers, fdmax, fds))
 					{
 						fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
+					}
+					unsigned int i;
+					for(i=0;i<handlers[h].n_init;i++)
+					{
+						hsend((*workers)[w].pipe[1], handlers[h].init[i]);
 					}
 					return(w);
 				}

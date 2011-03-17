@@ -38,7 +38,7 @@ unsigned long hgetlong(const char *buf);
 void hputshort(char *buf, unsigned short val);
 unsigned short hgetshort(const char *buf);
 
-int sendall(int sockfd, const void *buf, size_t length, int flags);
+ssize_t sendall(int sockfd, const void *buf, size_t length, int flags);
 
 hmsg new_hmsg(const char *funct, const char *data);
 int add_htag(hmsg h, const char *p_tag, const char *p_value);

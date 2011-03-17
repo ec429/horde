@@ -69,7 +69,7 @@ unsigned short hgetshort(const char *buf)
 	return(rv);
 }
 
-int sendall(int sockfd, const void *buf, size_t length, int flags)
+ssize_t sendall(int sockfd, const void *buf, size_t length, int flags)
 {
 	const char *p=buf;
 	ssize_t left=length;
@@ -81,7 +81,7 @@ int sendall(int sockfd, const void *buf, size_t length, int flags)
 		p+=n;
 		left-=n;
 	}
-	return(left);
+	return(0);
 }
 
 hmsg new_hmsg(const char *funct, const char *data)
