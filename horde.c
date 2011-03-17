@@ -41,7 +41,7 @@ typedef struct
 	const char *prog, *name;
 	int pipe[2];
 	enum {NONE, INP, SOCK} special;
-	time_t wait;
+	bool accepting; // for 'net's and handling accept()s on SOCKs
 	bool autoreplace;
 	pid_t awaiting;
 }
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "horde: addworker failed on INP\n");
 			return(EXIT_FAILURE);
 		}
-		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .autoreplace=true, .awaiting=0};
+		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .accepting=true, .autoreplace=true, .awaiting=0};
 		if(addworker(&nworkers, &workers, sock)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on SOCK\n");
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
 							init_char(&input, &inpl, &inpi);
 						break;
 						case SOCK:
-							if(workers[w].wait<time(NULL))
+							if(workers[w].accepting)
 							{
 								pid_t pid=do_fork("./net", "net", &nworkers, &workers, rfd, NULL);
 								if(pid<1)
@@ -312,7 +312,8 @@ int main(int argc, char **argv)
 								else
 								{
 									fprintf(stderr, "horde: passed on to new instance of net[%d]\n", pid);
-									workers[w].wait=time(NULL); // now no more connections for 1 second (to prevent running several copies of net)
+									workers[w].accepting=false; // now no more connections until we get an (accepted) - to prevent running several copies of net
+									workers[w].awaiting=pid;
 								}
 								if(worker_set(nworkers, workers, &fdmax, &master))
 								{
@@ -412,6 +413,18 @@ int main(int argc, char **argv)
 												workers[w].awaiting=workers[wproc].pid;
 											}
 										}
+										else if(strcmp(h->funct, "accepted")==0)
+										{
+											unsigned int wsock;
+											for(wsock=0;wsock<nworkers;wsock++)
+											{
+												if((workers[wsock].special==SOCK)&&(workers[wsock].awaiting==workers[w].pid)&&!workers[wsock].accepting)
+												{
+													workers[wsock].accepting=true;
+													workers[wsock].awaiting=0;
+												}
+											}
+										}
 										else if(strcmp(h->funct, "err")==0)
 										{
 											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
@@ -500,7 +513,7 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 		return(-1);
 	}
 	*workers=new_w;
-	new.wait=time(NULL);
+	new.awaiting=0;
 	new_w[nw]=new;
 	return(nw);
 }
@@ -515,7 +528,7 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 		if((*workers)[w].pipe[1]) close((*workers)[w].pipe[1]);
 	}
 	pid_t was=(*workers)[w].pid;
-	bool autoreplace=(*workers)[w].autoreplace && ((*workers)[w].wait+1<time(NULL));
+	bool autoreplace=(*workers)[w].autoreplace;
 	const char *prog=(*workers)[w].prog, *name=(*workers)[w].name;
 	while(w<*nworkers)
 	{

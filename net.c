@@ -42,8 +42,22 @@ int main(int argc, char **argv)
 		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
-	close(3); // don't need this any more
-	fprintf(stderr, "horde: %s[%d]: accepted\n", name, getpid());
+	else
+	{
+		close(3); // don't need this any more
+		hmsg ac=new_hmsg("accepted", NULL);
+		if(!ac)
+		{
+			fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg ac): new_hmsg: %s", name, getpid(), strerror(errno));
+			err(500, "Internal Server Error", NULL, newhandle);
+			close(newhandle);
+			hfin(EXIT_FAILURE);
+			return(EXIT_FAILURE);
+		}
+		hsend(1, ac);
+		free_hmsg(ac);
+		fprintf(stderr, "horde: %s[%d]: accepted\n", name, getpid());
+	}
 	bool is6=false; // is this IPv6 (else v4)?
 	switch(((struct sockaddr_in *)&remote)->sin_family)
 	{
@@ -274,6 +288,16 @@ int main(int argc, char **argv)
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
+					const char *from=NULL;
+					unsigned int i;
+					for(i=0;i<h->nparms;i++)
+					{
+						if(strcmp(h->p_tag[i], "from")==0)
+						{
+							from=h->p_value[i];
+							break;
+						}
+					}
 					if(strcmp(h->funct, "path"))
 					{
 						if(strcmp(h->funct, "shutdown")==0)
@@ -292,6 +316,21 @@ int main(int argc, char **argv)
 								fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
 							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
 							err(500, "Internal Server Error", NULL, newhandle);
+							close(newhandle);
+							hfin(EXIT_FAILURE);
+							return(EXIT_FAILURE);
+						}
+						else
+						{
+							fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+							hmsg eh=new_hmsg("err", frompath);
+							if(eh)
+							{
+								add_htag(eh, "what", "unrecognised-funct");
+								if(from) add_htag(eh, "to", from);
+								hsend(1, eh);
+								free_hmsg(eh);
+							}
 						}
 						free_hmsg(h);
 					}
