@@ -640,7 +640,15 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 		for(chld=2;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
-			if(res.type==L_STR) append_str(&rv, &l, &i, res.data.str);
+			if((res.type==L_STR)&&(strlen(res.data.str)>index.data.num))
+			{
+				char *str=strndup(res.data.str+index.data.num, length.data.num);
+				if(str)
+				{
+					append_str(&rv, &l, &i, str);
+					free(str);
+				}
+			}
 		}
 		return(l_str(rv));
 	}
