@@ -257,7 +257,7 @@ int main(int argc, char **argv)
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
+					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
 					h=hmsg_from_str(frompath);
 					if(h)
 					{
@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), fromproc);
+					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), fromproc);
 					h=hmsg_from_str(fromproc);
 					if(h)
 					{
@@ -371,6 +371,22 @@ int main(int argc, char **argv)
 					else
 						break;
 				}
+				unsigned short status=200;
+				const char *statusmsg=NULL;
+				unsigned int i;
+				for(i=0;i<h->nparms;i++)
+				{
+					fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+					if(strcmp(h->p_tag[i], "status")==0)
+					{
+						unsigned short ns=hgetshort(h->p_value[i]);
+						if((ns<600)&&(ns>99)) status=ns;
+					}
+					else if(strcmp(h->p_tag[i], "statusmsg")==0)
+					{
+						statusmsg=h->p_value[i];
+					}
+				}
 				if(!h->data)
 				{
 					fprintf(stderr, "horde: %s[%d]: 500 - proc data is empty\n", name, getpid());
@@ -379,6 +395,20 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
+				if(!statusmsg)
+					statusmsg=http_statusmsg(status);
+				if(!statusmsg)
+					statusmsg="???";
+				char *line=malloc(9+8+strlen(statusmsg)+2);
+				sprintf(line, "HTTP/1.1 %hu %s\r\n", status, statusmsg);
+				sendall(newhandle, line, strlen(line), 0);
+				//
+				/*
+Date: %s\n\
+Server: "HTTPD_VERSION" (Unix)\n\
+Content-Length: 0\n\
+%s\
+Connection: close\n\*/
 				free_hmsg(h);
 			break;
 			default:
@@ -401,12 +431,16 @@ int main(int argc, char **argv)
 
 void err(unsigned int status, const char *statusmsg, const char *headers, int fd)
 {
+	if(!statusmsg)
+		statusmsg=http_statusmsg(status);
+	if(!statusmsg)
+		statusmsg="???";
 	char date[256];
 	time_t timer = time(NULL);
 	struct tm *tm = gmtime(&timer);
 	size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
 	bool m=true;
-	char *buf=malloc(128+datelen+strlen(HTTPD_VERSION)+(statusmsg?strlen(statusmsg):0)+(headers?strlen(headers):0));
+	char *buf=malloc(128+datelen+strlen(HTTPD_VERSION)+(strlen(statusmsg))+(headers?strlen(headers):0));
 	if(!buf)
 	{
 		m=false;
@@ -428,6 +462,6 @@ Content-Length: 0\n\
 Connection: close\n\
 \n", status, statusmsg, date, headers?headers:"");
 	}
-	send(fd, buf, strlen(buf), 0);
+	sendall(fd, buf, strlen(buf), 0);
 	if(m) free(buf);
 }

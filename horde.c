@@ -310,7 +310,7 @@ int main(int argc, char **argv)
 							char *buf=getl(workers[w].pipe[0]);
 							if(*buf)
 							{
-								fprintf(stderr, "horde: < '%s'\n", buf);
+								//fprintf(stderr, "horde: < '%s'\n", buf);
 								hmsg h=hmsg_from_str(buf);
 								if(h)
 								{

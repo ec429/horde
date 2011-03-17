@@ -70,6 +70,43 @@ int main(int argc, char **argv)
 							hmsg r;
 							switch(errno)
 							{
+								case ENOENT:;
+									char *cep=malloc(strlen(root)+strlen("/404.htm")+1);
+									if(!cep)
+									{
+										hmsg r=new_hmsg("err", NULL);
+										add_htag(r, "what", "allocation-failure");
+										if(from) add_htag(r, "to", from);
+										hsend(1, r);
+										free_hmsg(r);
+									}
+									else
+									{
+										strcpy(cep, root);
+										strcat(cep, "/404.htm");
+										FILE *ce=fopen(cep, "r");
+										char *ced=NULL;
+										if(!ce)
+										{
+											ced="<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>";
+										}
+										else
+										{
+											ced=slurp(ce);
+											fclose(ce);
+										}
+										r=new_hmsg("proc", ced);
+										char st[9];
+										hputshort(st, 404);
+										add_htag(r, "status", st);
+										add_htag(r, "statusmsg", "Not Found");
+										if(from) add_htag(r, "to", from);
+										hsend(1, r);
+										free_hmsg(r);
+										if(ce) free(ced);
+										free(cep);
+									}
+								break;
 								default:
 									r=new_hmsg("err", NULL);
 									add_htag(r, "what", "open-failure");
@@ -85,6 +122,7 @@ int main(int argc, char **argv)
 						else
 						{
 							char *buf=slurp(fp);
+							fclose(fp);
 							if(!buf)
 							{
 								hmsg r=new_hmsg("err", NULL);
@@ -102,6 +140,7 @@ int main(int argc, char **argv)
 							}
 						}
 					}
+					free(path);
 				}
 			}
 			else if(strcmp(h->funct, "shutdown")==0)
