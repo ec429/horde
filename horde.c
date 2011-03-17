@@ -300,6 +300,19 @@ int main(int argc, char **argv)
 									}
 									shuttime=time(NULL)+8;
 								}
+								else if(strcmp(ih->funct, "workers")==0)
+								{
+									fprintf(stderr, "horde: workers (%u)\n", nworkers);
+									unsigned int w;
+									for(w=0;w<nworkers;w++)
+									{
+										char name[13];
+										memset(name, ' ', 12);
+										name[12]=0;
+										memcpy(name, workers[w].name, strlen(workers[w].name));
+										fprintf(stderr, "horde:\t%s%.12s[%05u]%s<- %05u\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].awaiting);
+									}
+								}
 								else
 								{
 									fprintf(stderr, "horde: unrecognised cmd '%s'\n", ih->funct);
