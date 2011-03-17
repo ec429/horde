@@ -370,6 +370,7 @@ int main(int argc, char **argv)
 									}
 									if(from) add_htag(r, "to", from);
 									hsend(1, r);
+									free(buf);
 									free_hmsg(r);
 								}
 							}
