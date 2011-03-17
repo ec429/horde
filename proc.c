@@ -18,11 +18,14 @@
 #include "bits.h"
 #include "libhorde.h"
 
+bool debug;
+
 int main(int argc, char **argv)
 {
 	const char *name=argc?argv[0]:"proc";
 	char *root=strdup("root");
 	bool pipeline=false;
+	debug=false;
 	int errupt=0;
 	while(!errupt)
 	{
@@ -86,7 +89,7 @@ int main(int argc, char **argv)
 						struct stat stbuf;
 						if(stat(path, &stbuf))
 						{
-							fprintf(stderr, "horde: %s[%d]: stat() failed: %s\n", name, getpid(), strerror(errno));
+							if(debug) fprintf(stderr, "horde: %s[%d]: stat() failed: %s\n", name, getpid(), strerror(errno));
 							hmsg r;
 							switch(errno)
 							{
@@ -104,7 +107,7 @@ int main(int argc, char **argv)
 									}
 									else if(status==403)
 									{
-										fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+										if(debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
 										r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 										char st[9];
 										hputshort(st, 404);
@@ -116,7 +119,7 @@ int main(int argc, char **argv)
 									}
 									else if(status==404)
 									{
-										fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+										if(debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
 										r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>");
 										char st[9];
 										hputshort(st, 404);
@@ -128,7 +131,7 @@ int main(int argc, char **argv)
 									}
 									else
 									{
-										fprintf(stderr, "horde: %s[%d]: using semi-static HTTP%hu\n", name, getpid(), status);
+										if(debug) fprintf(stderr, "horde: %s[%d]: using semi-static HTTP%hu\n", name, getpid(), status);
 										char *sed=malloc(400+strlen(statusmsg));
 										if(!sed)
 										{
@@ -252,6 +255,85 @@ int main(int argc, char **argv)
 							}
 							else
 							{
+								char *content_type=NULL;
+								char *ext=h->data, *last=NULL;
+								while((ext=strchr(ext, '.'))) last=ext++;
+								if((ext=last))
+								{
+									if(debug) fprintf(stderr, "horde: %s[%d]: sending request to ext\n", name, getpid());
+									hmsg ex=new_hmsg("ext", ext+1);
+									hsend(1, ex);
+									free_hmsg(ex);
+									bool exed=false;
+									while(!exed)
+									{
+										char *inp2=getl(STDIN_FILENO);
+										if(inp2)
+										{
+											if(!*inp2)
+											{
+												content_type=strdup("text/plain");
+												exed=true;
+											}
+											else
+											{
+												hmsg h2=hmsg_from_str(inp2);
+												if(h2)
+												{
+													if(strcmp(h2->funct, "ext")==0)
+													{
+														if(h2->data)
+														{
+															content_type=strdup(h2->data);
+															exed=true;
+														}
+													}
+													else if(strcmp(h2->funct, "err")==0)
+													{
+														if(debug)
+														{
+															fprintf(stderr, "horde: %s[%d]: ext failed: %s\n", name, getpid(), h2->funct);
+															unsigned int i;
+															for(i=0;i<h2->nparms;i++)
+															{
+																fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h2->p_tag[i], h2->p_value[i]);
+																if(strcmp(h2->p_tag[i], "errno")==0)
+																{
+																	fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h2->p_value[i])));
+																}
+															}
+															fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h2->data);
+														}
+														hmsg eh=new_hmsg("err", inp);
+														if(eh)
+														{
+															add_htag(eh, "what", "chld-failure");
+															add_htag(eh, "fatal", NULL);
+															add_htag(eh, "chld", "ext");
+															add_htag(eh, "err", inp2);
+															if(from) add_htag(eh, "to", from);
+															hsend(1, eh);
+															free_hmsg(eh);
+														}
+														hfin(EXIT_FAILURE);
+														return(EXIT_FAILURE);
+													}
+													free_hmsg(h2);
+												}
+											}
+											free(inp2);
+										}
+										else
+										{
+											content_type=strdup("text/plain");
+											exed=true;
+										}
+									}
+								}
+								if(!content_type)
+								{
+									content_type=strdup("text/plain");
+								}
 								char *buf;
 								ssize_t length=hslurp(fp, &buf);
 								fclose(fp);
@@ -270,105 +352,20 @@ int main(int argc, char **argv)
 									hputshort(st, status);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", statusmsg);
+									if(content_type)
+									{
+										char *ctype=malloc(16+strlen(content_type));
+										if(ctype)
+										{
+											sprintf(ctype, "Content-Type: %s", content_type);
+											add_htag(r, "header", ctype);
+											free(ctype);
+										}
+										free(content_type);
+									}
 									char ln[17];
 									hputlong(ln, length);
 									add_htag(r, "length", ln);
-									char *ext=h->data, *last=NULL;
-									while((ext=strchr(ext, '.'))) last=ext++;
-									if((ext=last))
-									{
-										fprintf(stderr, "horde: %s[%d]: sending request to ext\n", name, getpid());
-										hmsg ex=new_hmsg("ext", ext+1);
-										hsend(1, ex);
-										free_hmsg(ex);
-										bool exed=false;
-										while(!exed)
-										{
-											char *inp2=getl(STDIN_FILENO);
-											if(inp2)
-											{
-												if(!*inp2)
-												{
-													add_htag(r, "header", "Content-Type: application/octet-stream");
-													exed=true;
-												}
-												else
-												{
-													hmsg h2=hmsg_from_str(inp2);
-													if(h2)
-													{
-														if(strcmp(h2->funct, "ext")==0)
-														{
-															if(h2->data)
-															{
-																ext=malloc(16+strlen(h2->data));
-																if(!ext)
-																{
-																	fprintf(stderr, "horde: %s[%d]: allocation failure (char *ext): malloc: %s\n", name, getpid(), strerror(errno));
-																	hmsg eh=new_hmsg("err", inp);
-																	if(eh)
-																	{
-																		add_htag(eh, "what", "allocation-failure");
-																		add_htag(eh, "fatal", NULL);
-																		if(from) add_htag(eh, "to", from);
-																		hsend(1, eh);
-																		free_hmsg(eh);
-																	}
-																	hfin(EXIT_FAILURE);
-																	return(EXIT_FAILURE);
-																}
-																else
-																{
-																	sprintf(ext, "Content-Type: %s", h2->data);
-																	add_htag(r, "header", ext);
-																	free(ext);
-																	exed=true;
-																}
-															}
-														}
-														else if(strcmp(h2->funct, "err")==0)
-														{
-															fprintf(stderr, "horde: %s[%d]: ext failed: %s\n", name, getpid(), h2->funct);
-															unsigned int i;
-															for(i=0;i<h2->nparms;i++)
-															{
-																fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h2->p_tag[i], h2->p_value[i]);
-																if(strcmp(h2->p_tag[i], "errno")==0)
-																{
-																	fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h2->p_value[i])));
-																}
-															}
-															fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h2->data);
-															hmsg eh=new_hmsg("err", inp);
-															if(eh)
-															{
-																add_htag(eh, "what", "chld-failure");
-																add_htag(eh, "fatal", NULL);
-																add_htag(eh, "chld", "ext");
-																add_htag(eh, "err", inp2);
-																if(from) add_htag(eh, "to", from);
-																hsend(1, eh);
-																free_hmsg(eh);
-															}
-															hfin(EXIT_FAILURE);
-															return(EXIT_FAILURE);
-														}
-														free_hmsg(h2);
-													}
-												}
-												free(inp2);
-											}
-											else
-											{
-												add_htag(r, "header", "Content-Type: application/octet-stream");
-												exed=true;
-											}
-										}
-									}
-									else
-									{
-										add_htag(r, "header", "Content-Type: text/plain");
-									}
 									if(from) add_htag(r, "to", from);
 									hsend(1, r);
 									free(buf);
@@ -381,24 +378,24 @@ int main(int argc, char **argv)
 				}
 				if(pipeline)
 				{
-					fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
+					if(debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
 				}
 				else
 				{
-					fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
+					if(debug) fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
 					errupt++;
 				}
 			}
 			else if(strcmp(h->funct, "shutdown")==0)
 			{
-				fprintf(stderr, "horde: %s[%d]: server is shutting down\n", name, getpid());
+				if(debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", name, getpid());
 				errupt++;
 			}
 			else if(strcmp(h->funct, "root")==0)
 			{
 				if(!h->data)
 				{
-					fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", name, getpid());
+					if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", name, getpid());
 					hmsg eh=new_hmsg("err", inp);
 					if(eh)
 					{
@@ -413,7 +410,7 @@ int main(int argc, char **argv)
 					char *nr=strdup(h->data);
 					if(!nr)
 					{
-						fprintf(stderr, "horde: %s[%d]: allocation failure (char *root): strdup: %s\n", name, getpid(), strerror(errno));
+						if(debug) fprintf(stderr, "horde: %s[%d]: allocation failure (char *root): strdup: %s\n", name, getpid(), strerror(errno));
 						hmsg eh=new_hmsg("err", inp);
 						if(eh)
 						{
@@ -428,7 +425,7 @@ int main(int argc, char **argv)
 					}
 					if(root) free(root);
 					root=nr;
-					fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", name, getpid(), root);
+					if(debug) fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", name, getpid(), root);
 				}
 			}
 			else if(strcmp(h->funct, "pipeline")==0)
@@ -455,9 +452,21 @@ int main(int argc, char **argv)
 				else
 					pipeline=true;
 			}
+			else if(strcmp(h->funct, "debug")==0)
+			{
+				if(h->data)
+				{
+					if(strcmp(h->data, "true")==0)
+						debug=true;
+					else if(strcmp(h->data, "false")==0)
+						debug=false;
+				}
+				else
+					debug=true;
+			}
 			else
 			{
-				fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+				if(debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
 				hmsg eh=new_hmsg("err", inp);
 				if(eh)
 				{
