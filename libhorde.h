@@ -10,10 +10,12 @@
 */
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <ctype.h>
+#include <regex.h>
 
 #include "bits.h"
 #include "http.h"
@@ -33,6 +35,32 @@ typedef struct
 char *hex_encode(const char *src, size_t srclen);
 char *hex_decode(const char *src, size_t srclen);
 
+typedef struct _lnode
+{
+	char *funct;
+	unsigned int nchld;
+	struct _lnode *chld;
+}
+*lform;
+
+typedef struct
+{
+	enum {L_NUM, L_STR, L_BLO} type;
+	union
+	{
+		unsigned long num;
+		char *str;
+		struct _blo
+		{
+			char *bytes;
+			size_t len;
+		}
+		blo;
+	}
+	data;
+}
+lvalue;
+
 void hputlong(char *buf, unsigned long val);
 unsigned long hgetlong(const char *buf);
 void hputshort(char *buf, unsigned short val);
@@ -45,6 +73,19 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str);
 void free_hmsg(hmsg h);
+
+lform new_lform(const char *funct);
+int add_lchld(lform lf, lform chld);
+lform lform_str(const char *str, const char **end);
+char *str_lform(const lform lf);
+void free_lform(lform lf);
+
+lvalue l_eval(lform lf, lvalue app(lform lf));
+
+bool l_asbool(lvalue val);
+lvalue l_num(unsigned long num);
+lvalue l_str(char *str);
+lvalue l_blo(char *bytes, size_t len);
 
 ssize_t hsend(int fd, const hmsg h);
 void hfin(unsigned char status);
