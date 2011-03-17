@@ -32,6 +32,8 @@ int main(int argc, char **argv)
 		if(h)
 		{
 			const char *from=NULL;
+			unsigned short status=200;
+			const char *statusmsg=NULL;
 			unsigned int i;
 			for(i=0;i<h->nparms;i++)
 			{
@@ -40,7 +42,20 @@ int main(int argc, char **argv)
 					from=h->p_value[i];
 					break;
 				}
+				else if(strcmp(h->p_tag[i], "status")==0)
+				{
+					unsigned short ns=hgetshort(h->p_value[i]);
+					if((ns<600)&&(ns>99)) status=ns;
+				}
+				else if(strcmp(h->p_tag[i], "statusmsg")==0)
+				{
+					statusmsg=h->p_value[i];
+				}
 			}
+			if(!statusmsg)
+				statusmsg=http_statusmsg(status);
+			if(!statusmsg)
+				statusmsg="???";
 			if(strcmp(h->funct, "proc")==0)
 			{
 				if(strstr(h->data, "/../"))
@@ -76,33 +91,21 @@ int main(int argc, char **argv)
 							switch(errno)
 							{
 								case ENOENT:;
-									char *cep=malloc(strlen(root)+strlen("/404.htm")+1);
-									if(!cep)
+									if(status==200)
 									{
-										hmsg r=new_hmsg("err", NULL);
-										add_htag(r, "what", "allocation-failure");
-										if(from) add_htag(r, "to", from);
+										r=new_hmsg("proc", "/404.htm"); // tail-recursive proc call
+										char st[9];
+										hputshort(st, 404);
+										add_htag(r, "status", st);
+										add_htag(r, "statusmsg", "Not Found");
+										if(from) add_htag(r, "from", from);
 										hsend(1, r);
 										free_hmsg(r);
 									}
-									else
+									else if(status==403)
 									{
-										strcpy(cep, root);
-										strcat(cep, "/404.htm");
-										FILE *ce=fopen(cep, "r");
-										char *ced=NULL;
-										if(!ce)
-										{
-											fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
-											ced="<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>";
-										}
-										else
-										{
-											fprintf(stderr, "horde: %s[%d]: serving custom 404\n", name, getpid());
-											ced=slurp(ce);
-											fclose(ce);
-										}
-										r=new_hmsg("proc", ced);
+										fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+										r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 										char st[9];
 										hputshort(st, 404);
 										add_htag(r, "status", st);
@@ -110,8 +113,41 @@ int main(int argc, char **argv)
 										if(from) add_htag(r, "to", from);
 										hsend(1, r);
 										free_hmsg(r);
-										if(ce) free(ced);
-										free(cep);
+									}
+									else if(status==404)
+									{
+										fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+										r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>");
+										char st[9];
+										hputshort(st, 404);
+										add_htag(r, "status", st);
+										add_htag(r, "statusmsg", "Not Found");
+										if(from) add_htag(r, "to", from);
+										hsend(1, r);
+										free_hmsg(r);
+									}
+									else
+									{
+										fprintf(stderr, "horde: %s[%d]: using semi-static HTTP%hu\n", name, getpid(), status);
+										char *sed=malloc(400+strlen(statusmsg));
+										if(!sed)
+										{
+											hmsg r=new_hmsg("err", NULL);
+											add_htag(r, "what", "allocation-failure");
+											if(from) add_htag(r, "to", from);
+											hsend(1, r);
+											free_hmsg(r);
+										}
+										else
+										{
+											sprintf(sed, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error %hu: %s</h1>\n<p>The above error occurred while trying to process the request.  Furthermore, no default or custom error page matching the error in question was found.</p>\n</body></html>", status, statusmsg);
+											r=new_hmsg("proc", sed);
+											char st[9];
+											hputshort(st, status);
+											add_htag(r, "status", st);
+											add_htag(r, "statusmsg", statusmsg);
+											if(from) add_htag(r, "to", from);
+										}
 									}
 								break;
 								default:
@@ -146,12 +182,12 @@ int main(int argc, char **argv)
 								sprintf(ipath, "%sindex.htm", path);
 								if(stat(ipath, &stbuf)) // redirect to index; if not present, forbid directory listings
 								{
-									hmsg r=new_hmsg("proc", NULL);
+									hmsg r=new_hmsg("proc", "/403.htm"); // tail-recursive proc call
 									char st[9];
 									hputshort(st, 403);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Forbidden");
-									if(from) add_htag(r, "to", from);
+									if(from) add_htag(r, "from", from);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -192,44 +228,15 @@ int main(int argc, char **argv)
 								hmsg r;
 								switch(errno)
 								{
-									case ENOENT:;
-										char *cep=malloc(strlen(root)+strlen("/404.htm")+1);
-										if(!cep)
-										{
-											hmsg r=new_hmsg("err", NULL);
-											add_htag(r, "what", "allocation-failure");
-											if(from) add_htag(r, "to", from);
-											hsend(1, r);
-											free_hmsg(r);
-										}
-										else
-										{
-											strcpy(cep, root);
-											strcat(cep, "/404.htm");
-											FILE *ce=fopen(cep, "r");
-											char *ced=NULL;
-											if(!ce)
-											{
-												fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
-												ced="<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>";
-											}
-											else
-											{
-												fprintf(stderr, "horde: %s[%d]: serving custom 404\n", name, getpid());
-												ced=slurp(ce);
-												fclose(ce);
-											}
-											r=new_hmsg("proc", ced);
-											char st[9];
-											hputshort(st, 404);
-											add_htag(r, "status", st);
-											add_htag(r, "statusmsg", "Not Found");
-											if(from) add_htag(r, "to", from);
-											hsend(1, r);
-											free_hmsg(r);
-											if(ce) free(ced);
-											free(cep);
-										}
+									case ENOENT:
+										r=new_hmsg("proc", "/404.htm"); // tail-recursive proc call
+										char st[9];
+										hputshort(st, 404);
+										add_htag(r, "status", st);
+										add_htag(r, "statusmsg", "Not Found");
+										if(from) add_htag(r, "from", from);
+										hsend(1, r);
+										free_hmsg(r);
 									break;
 									default:
 										r=new_hmsg("err", NULL);
@@ -258,6 +265,11 @@ int main(int argc, char **argv)
 								else
 								{
 									hmsg r=new_hmsg("proc", buf);
+									char st[9];
+									hputshort(st, status);
+									add_htag(r, "status", st);
+									add_htag(r, "statusmsg", statusmsg);
+									add_htag(r, "header", "Content-Type: text/html"); // not everything is html, but this will do for a start
 									if(from) add_htag(r, "to", from);
 									hsend(1, r);
 									free_hmsg(r);

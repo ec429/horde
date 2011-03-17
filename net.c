@@ -451,14 +451,6 @@ int main(int argc, char **argv)
 						statusmsg=h->p_value[i];
 					}
 				}
-				/*if(!h->data)
-				{
-					fprintf(stderr, "horde: %s[%d]: 500 - proc data is empty\n", name, getpid());
-					err(500, "Internal Server Error", NULL, newhandle);
-					close(newhandle);
-					hfin(EXIT_FAILURE);
-					return(EXIT_FAILURE);
-				}*/
 				if(!statusmsg)
 					statusmsg=http_statusmsg(status);
 				if(!statusmsg)
@@ -498,6 +490,13 @@ int main(int argc, char **argv)
 							hfin(EXIT_FAILURE);
 							return(EXIT_FAILURE);
 						}
+						if((n=sendall(newhandle, "\n", 1, 0)))
+						{
+							fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header, \\n) failed, %zd\n", name, getpid(), n);
+							close(newhandle);
+							hfin(EXIT_FAILURE);
+							return(EXIT_FAILURE);
+						}
 					}
 				}
 				sendall(newhandle, "\n", 1, 0);
@@ -512,9 +511,6 @@ int main(int argc, char **argv)
 						return(EXIT_FAILURE);
 					}
 				}
-				/*
-%s\
-*/
 				free_hmsg(h);
 			break;
 			default:
@@ -535,7 +531,7 @@ int main(int argc, char **argv)
 	return(EXIT_SUCCESS);
 }
 
-void err(unsigned int status, const char *statusmsg, const char *headers, int fd)
+void err(unsigned int status, const char *statusmsg, const char *headers, int fd) // should typically only be used if (proc) unavailable
 {
 	if(!statusmsg)
 		statusmsg=http_statusmsg(status);
