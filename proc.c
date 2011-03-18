@@ -482,7 +482,7 @@ int handle(const char *inp, const char *name, char **root)
 								free_hmsg(r);
 							}
 							else
-							{
+							{ // TODO loop through the processor list looking for matches
 								if((!processed)&&(length>(1<<16)))
 								{
 									free(buf);

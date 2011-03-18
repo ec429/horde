@@ -86,6 +86,7 @@ bool l_asbool(lvalue val);
 lvalue l_num(unsigned long num);
 lvalue l_str(char *str);
 lvalue l_blo(char *bytes, size_t len);
+void free_lvalue(lvalue l);
 
 ssize_t hsend(int fd, const hmsg h);
 void hfin(unsigned char status);

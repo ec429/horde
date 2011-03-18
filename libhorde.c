@@ -544,6 +544,8 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 			lvalue res=l_eval(&lf->chld[chld], app);
 			if(res.type!=first.type)
 			{
+				free_lvalue(first);
+				free_lvalue(res);
 				return(l_num(0));
 			}
 			switch(first.type)
@@ -552,14 +554,17 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 					if(res.data.num!=first.data.num) return(l_num(0));
 				break;
 				case L_STR:
-					if(strcmp(res.data.str, first.data.str)) return(l_num(0));
+					if(strcmp(res.data.str, first.data.str)) {free_lvalue(first); free_lvalue(res); return(l_num(0));}
+					free_lvalue(res);
 				break;
 				case L_BLO:
-					if(res.data.blo.len!=first.data.blo.len) return(l_num(0));
-					if(memcmp(res.data.blo.bytes, first.data.blo.bytes, res.data.blo.len)) return(l_num(0));
+					if(res.data.blo.len!=first.data.blo.len) {free_lvalue(first); free_lvalue(res); return(l_num(0));}
+					if(memcmp(res.data.blo.bytes, first.data.blo.bytes, res.data.blo.len)) {free_lvalue(first); free_lvalue(res); return(l_num(0));}
+					free_lvalue(res);
 				break;
 			}
 		}
+		free_lvalue(first);
 		return(l_num(-1));
 	}
 	else if(strcmp(lf->funct, "and")==0)
@@ -568,7 +573,9 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
-			if(!l_asbool(res))
+			bool b=l_asbool(res);
+			free_lvalue(res);
+			if(!b)
 				return(l_num(0));
 		}
 		return(l_num(-1));
@@ -579,7 +586,9 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
-			if(l_asbool(res))
+			bool b=l_asbool(res);
+			free_lvalue(res);
+			if(b)
 				return(l_num(-1));
 		}
 		return(l_num(0));
@@ -588,16 +597,22 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 	{
 		if(!lf->nchld) return(l_str(NULL));
 		lvalue pattern=l_eval(&lf->chld[0], app);
-		if(pattern.type!=L_STR) return(l_str(NULL));
+		if(pattern.type!=L_STR) {free_lvalue(pattern); return(l_str(NULL));}
 		regex_t reg;
-		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_ICASE)) return(l_str(NULL));
+		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_ICASE)) {free_lvalue(pattern); return(l_str(NULL));}
+		free_lvalue(pattern);
 		unsigned int chld;
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
 			if(res.type!=L_STR) continue;
 			if(regexec(&reg, res.data.str, 0, NULL, 0)==0)
+			{
+				free_lvalue(res);
+				regfree(&reg);
 				return(l_num(-1));
+			}
+			free_lvalue(res);
 		}
 		regfree(&reg);
 		return(l_num(0));
@@ -606,16 +621,22 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 	{
 		if(!lf->nchld) return(l_str(NULL));
 		lvalue pattern=l_eval(&lf->chld[0], app);
-		if(pattern.type!=L_STR) return(l_str(NULL));
+		if(pattern.type!=L_STR) {free_lvalue(pattern); return(l_str(NULL));}
 		regex_t reg;
-		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED|REG_ICASE)) return(l_str(NULL));
+		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED|REG_ICASE)) {free_lvalue(pattern); return(l_str(NULL));}
+		free_lvalue(pattern);
 		unsigned int chld;
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
 			if(res.type!=L_STR) continue;
 			if(regexec(&reg, res.data.str, 0, NULL, 0)==0)
+			{
+				free_lvalue(res);
+				regfree(&reg);
 				return(l_num(-1));
+			}
+			free_lvalue(res);
 		}
 		regfree(&reg);
 		return(l_num(0));
@@ -624,16 +645,22 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 	{
 		if(!lf->nchld) return(l_str(NULL));
 		lvalue pattern=l_eval(&lf->chld[0], app);
-		if(pattern.type!=L_STR) return(l_str(NULL));
+		if(pattern.type!=L_STR) {free_lvalue(pattern); return(l_str(NULL));}
 		regex_t reg;
-		if(regcomp(&reg, pattern.data.str, REG_NOSUB)) return(l_str(NULL));
+		if(regcomp(&reg, pattern.data.str, REG_NOSUB)) {free_lvalue(pattern); return(l_str(NULL));}
+		free_lvalue(pattern);
 		unsigned int chld;
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
 			if(res.type!=L_STR) continue;
 			if(regexec(&reg, res.data.str, 0, NULL, 0)==0)
+			{
+				free_lvalue(res);
+				regfree(&reg);
 				return(l_num(-1));
+			}
+			free_lvalue(res);
 		}
 		regfree(&reg);
 		return(l_num(0));
@@ -642,16 +669,22 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 	{
 		if(!lf->nchld) return(l_str(NULL));
 		lvalue pattern=l_eval(&lf->chld[0], app);
-		if(pattern.type!=L_STR) return(l_str(NULL));
+		if(pattern.type!=L_STR) {free_lvalue(pattern); return(l_str(NULL));}
 		regex_t reg;
-		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED)) return(l_str(NULL));
+		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED)) {free_lvalue(pattern); return(l_str(NULL));}
+		free_lvalue(pattern);
 		unsigned int chld;
 		for(chld=0;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], app);
 			if(res.type!=L_STR) continue;
 			if(regexec(&reg, res.data.str, 0, NULL, 0)==0)
+			{
+				free_lvalue(res);
+				regfree(&reg);
 				return(l_num(-1));
+			}
+			free_lvalue(res);
 		}
 		regfree(&reg);
 		return(l_num(0));
@@ -660,8 +693,8 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 	{
 		if(!lf->nchld<3) return(l_str(NULL));
 		lvalue index=l_eval(&lf->chld[0], app), length=l_eval(&lf->chld[1], app);
-		if(index.type!=L_NUM) return(l_str(NULL));
-		if(length.type!=L_NUM) return(l_str(NULL));
+		if(index.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
+		if(length.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
 		char *rv;unsigned int l,i;
 		init_char(&rv, &l, &i);
 		unsigned int chld;
@@ -677,7 +710,10 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 					free(str);
 				}
 			}
+			free_lvalue(res);
 		}
+		free_lvalue(index);
+		free_lvalue(length);
 		return(l_str(rv));
 	}
 	if(app) return(app(lf));
@@ -712,6 +748,21 @@ lvalue l_str(char *str)
 lvalue l_blo(char *bytes, size_t len)
 {
 	return((lvalue){.type=L_BLO, .data.blo=(struct _blo){.bytes=bytes, .len=len}});
+}
+
+void free_lvalue(lvalue l)
+{
+	switch(l.type)
+	{
+		case L_NUM:
+			return;
+		case L_STR:
+			if(l.data.str) free(l.data.str);
+			return;
+		case L_BLO:
+			if(l.data.blo.bytes) free(l.data.blo.bytes);
+			return;
+	}
 }
 
 ssize_t hsend(int fd, const hmsg h)
