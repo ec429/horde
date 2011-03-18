@@ -534,7 +534,35 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 		return(l_str(NULL));
 	if(lf->nchld&&!lf->chld)
 		return(l_str(NULL));
-	if(strcmp(lf->funct, "and")==0)
+	if(strcmp(lf->funct, "=")==0)
+	{
+		if(!lf->nchld) return(l_num(-1));
+		lvalue first=l_eval(&lf->chld[0], app);
+		unsigned int chld;
+		for(chld=1;chld<lf->nchld;chld++)
+		{
+			lvalue res=l_eval(&lf->chld[chld], app);
+			if(res.type!=first.type)
+			{
+				return(l_num(0));
+			}
+			switch(first.type)
+			{
+				case L_NUM:
+					if(res.data.num!=first.data.num) return(l_num(0));
+				break;
+				case L_STR:
+					if(strcmp(res.data.str, first.data.str)) return(l_num(0));
+				break;
+				case L_BLO:
+					if(res.data.blo.len!=first.data.blo.len) return(l_num(0));
+					if(memcmp(res.data.blo.bytes, first.data.blo.bytes, res.data.blo.len)) return(l_num(0));
+				break;
+			}
+		}
+		return(l_num(-1));
+	}
+	else if(strcmp(lf->funct, "and")==0)
 	{
 		unsigned int chld;
 		for(chld=0;chld<lf->nchld;chld++)

@@ -1,0 +1,5 @@
+(add \
+	(rule [or [= [ext]["pico"]]] [and [= [subst[ctype][0][5]]["text/"]] [grep [body]["<?pico"]]]]) \
+	(proc pico) \
+	(onfail passthru) \
+	)

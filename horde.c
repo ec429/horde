@@ -514,18 +514,15 @@ int main(int argc, char **argv)
 										}
 										else if(strcmp(h->funct, "err")==0)
 										{
-											if(debug)
+											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
+											for(i=0;i<h->nparms;i++)
 											{
-												fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
-												for(i=0;i<h->nparms;i++)
+												fprintf(stderr, "horde:\t(%s|%s)\n", h->p_tag[i], h->p_value[i]);
+												if(strcmp(h->p_tag[i], "errno")==0)
 												{
-													fprintf(stderr, "horde:\t(%s|%s)\n", h->p_tag[i], h->p_value[i]);
-													if(strcmp(h->p_tag[i], "errno")==0)
-													{
-														fprintf(stderr, "horde:\t\t%s\n", strerror(hgetlong(h->p_value[i])));
-													}
-													fprintf(stderr, "horde:\t%s\n", h->data);
+													fprintf(stderr, "horde:\t\t%s\n", strerror(hgetlong(h->p_value[i])));
 												}
+												fprintf(stderr, "horde:\t%s\n", h->data);
 											}
 										}
 										else
