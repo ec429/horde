@@ -28,9 +28,10 @@ typedef struct
 processor;
 
 int handle(const char *inp, const char *name, char **root);
+int add_processor(processor p);
 
 bool debug, pipeline;
-int nprocs;
+unsigned int nprocs;
 processor *procs;
 
 int main(int argc, char **argv)
@@ -44,7 +45,7 @@ int main(int argc, char **argv)
 	FILE *rc=fopen(".proc", "r");
 	if(rc)
 	{
-		fprintf(stderr, "horde: %s[%d]: reading rc file '.proc'\n", name, getpid());
+		//fprintf(stderr, "horde: %s[%d]: reading rc file '.proc'\n", name, getpid());
 		char *line;
 		while((line=fgetl(rc)))
 		{
@@ -75,10 +76,10 @@ int main(int argc, char **argv)
 			if(e) break;
 		}
 		fclose(rc);
-		fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", name, getpid());
+		if(debug) fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", name, getpid());
 	}
-	else
-		fprintf(stderr, "horde: %s[%d]: failed to open rc file '.proc': fopen: %s\n", name, getpid(), strerror(errno));
+	/*else
+		fprintf(stderr, "horde: %s[%d]: failed to open rc file '.proc': fopen: %s\n", name, getpid(), strerror(errno));*/
 	int errupt=0;
 	while(!errupt)
 	{
@@ -123,7 +124,78 @@ int handle(const char *inp, const char *name, char **root)
 			statusmsg=http_statusmsg(status);
 		if(!statusmsg)
 			statusmsg="???";
-		if(strcmp(h->funct, "proc")==0)
+		if(strcmp(h->funct, "add")==0)
+		{
+			processor newp=(processor){.rule=NULL, .functor=NULL, .body=NULL, .onfail=P_404};
+			unsigned int i;
+			for(i=0;i<h->nparms;i++)
+			{
+				if(strcmp(h->p_tag[i], "rule")==0)
+				{
+					lform nrule=lform_str(h->p_value[i], NULL);
+					if(!nrule) break;
+					if(newp.rule)
+					{
+						lform and=malloc(sizeof(*and));
+						if(!and)
+						{
+							free_lform(nrule);
+						}
+						and->funct=strdup("and");
+						if(!and->funct)
+						{
+							free_lform(nrule);
+							free(and);
+							break;
+						}
+						and->nchld=2;
+						and->chld=malloc(2*sizeof(*and));
+						if(!and->chld)
+						{
+							free_lform(nrule);
+							free(and->funct);
+							free(and);
+							break;
+						}
+						and->chld[0]=*newp.rule;
+						and->chld[1]=*nrule;
+						free(newp.rule);
+						free(nrule);
+						newp.rule=and;
+					}
+					else
+					{
+						newp.rule=nrule;
+					}
+					break;
+				}
+				else if(strcmp(h->p_tag[i], "proc")==0)
+				{
+					if(!newp.functor)
+					{
+						hmsg nf=new_hmsg(h->p_value[i], NULL);
+						if(nf)
+						{
+							newp.functor=nf;
+							newp.body=&nf->data;
+						}
+					}
+				}
+				else if(strcmp(h->p_tag[i], "onfail")==0)
+				{
+					if(strcmp(h->p_value[i], "passthru")==0)
+					{
+						newp.onfail=P_THRU;
+					}
+					else if(strcmp(h->p_value[i], "404")==0)
+					{
+						newp.onfail=P_404;
+					}
+				}
+			}
+			add_processor(newp);
+		}
+		else if(strcmp(h->funct, "proc")==0)
 		{
 			if(strstr(h->data, "/../"))
 			{
@@ -550,4 +622,17 @@ int handle(const char *inp, const char *name, char **root)
 		free_hmsg(h);
 	}
 	return(errupt);
+}
+
+int add_processor(processor p)
+{
+	unsigned int newn=nprocs++;
+	processor *newp=realloc(procs, nprocs*sizeof(processor));
+	if(!newp)
+	{
+		nprocs=newn;
+		return(-1);
+	}
+	newp[newn]=p;
+	return(newn);
 }

@@ -476,7 +476,7 @@ lform lform_str(const char *str, const char **end)
 		}
 		p++;
 	}
-	*end=p;
+	if(end) *end=p;
 	return(rv);
 }
 
@@ -681,6 +681,7 @@ lvalue l_eval(lform lf, lvalue app(lform lf))
 		return(l_str(rv));
 	}
 	if(app) return(app(lf));
+	fprintf(stderr, "libhorde[%u]: l_eval: unrecognised funct %s\n", getpid(), lf->funct);
 	return(l_str(NULL));
 }
 
