@@ -224,11 +224,11 @@ int handle(const char *inp, const char *name, char **root)
 					struct stat stbuf;
 					if(stat(path, &stbuf))
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: stat() failed: %s\n", name, getpid(), strerror(errno));
+						if(debug) fprintf(stderr, "horde: %s[%d]: stat(%s) failed: %s\n", name, getpid(), path, strerror(errno));
 						hmsg r;
 						switch(errno)
 						{
-							case ENOENT:;
+							case ENOENT:
 								if(status==200)
 								{
 									r=new_hmsg("proc", "/404.htm"); // tail-recursive proc call
@@ -236,13 +236,13 @@ int handle(const char *inp, const char *name, char **root)
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
-									if(from) add_htag(r, "from", from);
+									if(from) add_htag(r, "to", from);
 									hsend(1, r);
 									free_hmsg(r);
 								}
 								else if(status==403)
 								{
-									if(debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+									if(debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 									char st[9];
 									hputshort(st, 404);
@@ -299,6 +299,17 @@ int handle(const char *inp, const char *name, char **root)
 								free_hmsg(r);
 							break;
 						}
+						if(pipeline)
+						{
+							if(debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
+						}
+						else
+						{
+							if(debug) fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
+							errupt++;
+						}
+						free(path);
+						return(errupt);
 					}
 					else
 					{
@@ -325,7 +336,7 @@ int handle(const char *inp, const char *name, char **root)
 								hputshort(st, 403);
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", "Forbidden");
-								if(from) add_htag(r, "from", from);
+								if(from) add_htag(r, "to", from);
 								hsend(1, r);
 								free_hmsg(r);
 							}
@@ -372,7 +383,7 @@ int handle(const char *inp, const char *name, char **root)
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
-									if(from) add_htag(r, "from", from);
+									if(from) add_htag(r, "to", from);
 									hsend(1, r);
 									free_hmsg(r);
 								break;
