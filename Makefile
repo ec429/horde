@@ -2,7 +2,7 @@
 CC := gcc
 CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g
 
-all: horde net path proc ext pico
+all: horde net path proc ext pico log
 
 horde: horde.c libhorde.o libhorde.h http.h bits.o bits.h
 	$(CC) $(CFLAGS) -o $@ horde.c libhorde.o bits.o
@@ -21,6 +21,9 @@ ext: ext.c libhorde.o libhorde.h bits.o bits.h
 
 pico: pico.c libhorde.o libhorde.h bits.o bits.h
 	$(CC) $(CFLAGS) -o $@ pico.c libhorde.o bits.o
+
+log: log.c libhorde.o libhorde.h bits.o bits.h
+	$(CC) $(CFLAGS) -o $@ log.c libhorde.o bits.o
 
 libhorde.o: libhorde.c libhorde.h http.h bits.h
 

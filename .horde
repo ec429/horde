@@ -3,3 +3,9 @@
 	(prog ./pico) \
 	(stdinit) \
 	)
+
+(add \
+	(name log) \
+	(prog ./log) \
+	(only) \
+	)

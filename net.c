@@ -27,6 +27,7 @@
 
 void err(unsigned int status, const char *statusmsg, const char *headers, int fd);
 bool check_msgs(const char *name);
+char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua); // returns a malloc-like pointer
 
 bool debug;
 
@@ -153,6 +154,8 @@ int main(int argc, char **argv)
 		char *uri=strtok(NULL, " ");
 		char *ver=strtok(NULL, "");
 		char *host=NULL;
+		char *ref=NULL;
+		char *ua=NULL;
 		http_version v=get_version(ver);
 		if(v==HTTP_VERSION_UNKNOWN)
 		{
@@ -235,6 +238,10 @@ int main(int argc, char **argv)
 				headers[nhdrs++]=(struct hdr){.name=h, .un_name=line[l], .value=colon};
 				if(h==HTTP_HEADER_HOST)
 					host=colon;
+				else if(h==HTTP_HEADER_REFERER)
+					ref=colon;
+				else if(h==HTTP_HEADER_USER_AGENT)
+					ua=colon;
 			} // otherwise, we just ignore the line
 		}
 		while(check_msgs(name));
@@ -367,7 +374,8 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				if(debug) fprintf(stderr, "horde: %s[%d]: sending request to proc for %s\n", name, getpid(), h->data);
+				char *rpath=strdup(h->data);
+				if(debug) fprintf(stderr, "horde: %s[%d]: sending request to proc for %s\n", name, getpid(), rpath);
 				hmsg p=new_hmsg("proc", h->data);
 				if(!p)
 				{
@@ -589,6 +597,15 @@ int main(int argc, char **argv)
 					free(data);
 				}
 				free_hmsg(h);
+				if((status!=302)&&strcmp(ip, is6?"::1":"127.0.0.1")) // log everything except 302 Found and localhost
+				{
+					char *ll=logline(status, length, rpath, ip, "GET", ref, ua);
+					hmsg l=new_hmsg("log", ll);
+					free(ll);
+					hsend(1, l);
+					free_hmsg(l);
+				}
+				free(rpath);
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
@@ -686,4 +703,18 @@ bool check_msgs(const char *name)
 		return(true);
 	}
 	return(false);
+}
+
+char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua)
+{
+	char date[256];
+	time_t timer = time(NULL);
+	struct tm *tm = gmtime(&timer);
+	size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
+	char st[17], sz[17];
+	sprintf(st, "%d", status);
+	sprintf(sz, "%lu", length);
+	char *rv=malloc(strlen(ip)+1+datelen+1+strlen(st)+1+strlen(ac)+2+strlen(sz)+2+(path?strlen(path):1)+1+(ref?strlen(ref):2)+1+(ua?strlen(ua):2)+1);
+	sprintf(rv, "%s\t%s\t%s %s [%s] %s\t%s\t%s", ip, date, st, ac, sz, (path?path:"?"), (ref?ref:"--"), (ua?ua:".."));
+	return(rv);
 }
