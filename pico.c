@@ -9,11 +9,9 @@
 */
 
 #include <stdio.h>
-//#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-//#include <errno.h>
-//#include <sys/stat.h>
+#include <errno.h>
 
 #include "bits.h"
 #include "libhorde.h"
@@ -115,7 +113,7 @@ int handle(const char *inp, const char *name, char **root)
 			}
 			else
 			{
-				char *resp=picofy(h, name, (pdata){.root=root});
+				char *resp=picofy(h, name, (pdata){.root=*root});
 				hmsg r=new_hmsg("pico", resp);
 				free(resp);
 				if(from) add_htag(r, "to", from);
@@ -238,7 +236,7 @@ char *picofy(hmsg h, const char *name, pdata p)
 				char *f=strpbrk(d, "=>");
 				if(f)
 				{
-					*f++=0
+					*f++=0;
 					if(*f++=='"')
 					{
 						char *g=strchr(f, '"');
@@ -254,10 +252,10 @@ char *picofy(hmsg h, const char *name, pdata p)
 					if(*f=='/')
 					{
 						FILE *pf=NULL;
-						char *fn=malloc(strlen(f)+strlen(root)+1);
+						char *fn=malloc(strlen(f)+strlen(p.root)+1);
 						if(fn)
 						{
-							sprintf(fn, "%s%s", root, f);
+							sprintf(fn, "%s%s", p.root, f);
 							pf=fopen(fn, "r");
 						}
 						if(pf)

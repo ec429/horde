@@ -3,4 +3,5 @@ net
 path
 proc
 ext
+pico
 *.o
