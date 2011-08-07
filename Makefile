@@ -1,6 +1,6 @@
 # Makefile for horde http server
 CC := gcc
-CFLAGS := -Wall -Wextra -Werror -pedantic -std=gnu99 -g
+CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g
 
 all: horde net path proc ext
 

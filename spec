@@ -5,7 +5,9 @@ Is the initial process, holds the listen()ing socket, has a pipe() to each child
 When a request comes in on socket, fork() a 'net' process
 When a request comes in over a pipe, fork() whatever process is registered to handle it
 
-Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces.  User-input data may be hex-encoded unnecessarily.
+This specification is not only incomplete but also outdated; in particular, the following transcript, while a reasonable way of doing things, does not correspond to the current implementation (for instance, path resolution in this case actually triggers a 302; proc doesn't use a sock_un but instead reads/writes the data through disp).
+
+Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces or begin with a '#' (wh. is used to indicate hex-encoding).  User-input data may be hex-encoded unnecessarily.
 disp fork() exec(path)
 disp fork() exec(stats)
 C>disp connect

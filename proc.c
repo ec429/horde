@@ -243,7 +243,7 @@ int handle(const char *inp, const char *name, char **root)
 								else if(status==403)
 								{
 									if(debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", name, getpid());
-									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
+									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>403 -- Forbidden</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 									char st[9];
 									hputshort(st, 404);
 									add_htag(r, "status", st);
@@ -278,7 +278,7 @@ int handle(const char *inp, const char *name, char **root)
 									}
 									else
 									{
-										sprintf(sed, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error %hu: %s</h1>\n<p>The above error occurred while trying to process the request.  Furthermore, no default or custom error page matching the error in question was found.</p>\n</body></html>", status, statusmsg);
+										sprintf(sed, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>%1$hu -- %2$s</title>\n</head><body>\n<h1>HTTP Error %1$hu: %2$s</h1>\n<p>The above error occurred while trying to process the request.  Furthermore, no default or custom error page matching the error in question was found.</p>\n</body></html>", status, statusmsg);
 										r=new_hmsg("proc", sed);
 										char st[9];
 										hputshort(st, status);
