@@ -1,0 +1,36 @@
+pico is intended to emulate the (somewhat limited) dynamic-HTML capabilities of the original httpico, which provided the following <?pico> commands:
+
+<?pico pfile="path">
+	Includes the text of the file at path (relative to the root; must begin with '/'), and processes any <?pico> tags within it.
+
+<?pico log="path">
+	Includes the text of the file at path (relative to .), and adds a <br /> before each \n.  Should not process <?pico> tags within (although the original httpico did process 'file', leading to a security vulnerability).
+
+<?pico file="path">
+	Includes the text of the file at path (relative to .), with no processing performed.
+
+<?pico useragent>
+	Replaced with the User-Agent string supplied by the browser.
+
+<?pico version>
+	Replaced with a string describing the version of pico and of the server.
+
+<?pico uptime>
+	Replaced with the uptime of the server and of the system.
+
+<?pico rqpath>
+	Replaced with the path of the resource which was requested.
+
+<?pico host>
+	Replaced with the hostname of the machine (or of the server, if using virtual hosts).
+
+<?pico now="format">
+	Replaced with the current time, formatted according to format (as used by strftime()).
+
+<?pico stats="what">
+	Replaced with statistics, depending on the value of 'what':
+		pages_served	The total number of pages served
+		bytes_today		The total amount of data served today, with an appropriate unit
+		stats_began		The date & time at which the recording of statistics began
+		(also concurrent_conns, concurrent_max and concurrent_max_when, which will not be supported)
+	These statistics are not particularly useful, hence the existence of other mechanisms like genstats.
