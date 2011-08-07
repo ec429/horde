@@ -61,6 +61,16 @@ typedef struct
 }
 lvalue;
 
+typedef struct
+{
+	unsigned int nvars;
+	char **name;
+	lvalue *var;
+}
+lvars;
+
+#define NOVARS	(lvars){.nvars=0, .name=NULL, .var=NULL}
+
 void hputlong(char *buf, unsigned long val);
 unsigned long hgetlong(const char *buf);
 void hputshort(char *buf, unsigned short val);
@@ -80,13 +90,18 @@ lform lform_str(const char *str, const char **end);
 char *str_lform(const lform lf);
 void free_lform(lform lf);
 
-lvalue l_eval(lform lf, lvalue app(lform lf));
+lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv));
 
 bool l_asbool(lvalue val);
 lvalue l_num(unsigned long num);
 lvalue l_str(char *str);
 lvalue l_blo(char *bytes, size_t len);
+lvalue l_dup(lvalue val);
 void free_lvalue(lvalue l);
+
+bool find_lvar(lvars lv, const char *name, unsigned int *i);
+void l_addvar(lvars *lv, const char *name, lvalue val);
+void free_lvars(lvars *lv);
 
 ssize_t hsend(int fd, const hmsg h);
 void hfin(unsigned char status);

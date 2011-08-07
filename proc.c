@@ -31,7 +31,7 @@ processor;
 int handle(const char *inp, const char *name, char **root);
 int add_processor(processor p);
 
-lvalue app(lform lf);
+lvalue app(lform lf, lvars lv);
 
 bool debug, pipeline;
 unsigned int nprocs;
@@ -482,7 +482,7 @@ int handle(const char *inp, const char *name, char **root)
 							}
 							bool processed=false;
 							char *buf;
-							ssize_t length=dslurp(fp, &buf);
+							ssize_t length=hslurp(fp, &buf);
 							fclose(fp);
 							if((!buf)||(length<0))
 							{
@@ -494,16 +494,25 @@ int handle(const char *inp, const char *name, char **root)
 							}
 							else
 							{
+								lvars lv=NOVARS;
+								l_addvar(&lv, "ext", l_str(ext+1));
+								l_addvar(&lv, "ctype", l_str(content_type));
+								char *raw=hex_decode(buf, strlen(buf));
+								l_addvar(&lv, "body", l_blo(raw, length));
+								free(raw);
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
-									lvalue apply=l_eval(procs[proc].rule, app);
-									if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
+									lvalue apply=l_eval(procs[proc].rule, lv, app);
+									//if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
 									if(l_asbool(apply))
 									{
-										hmsg h=procs[proc].functor;
-										h->data=buf;
+										hmsg h=new_hmsg(procs[proc].functor->funct, buf);
+										char ln[17];
+										hputlong(ln, length);
+										add_htag(h, "length", ln);
 										hsend(1, h);
+										free_hmsg(h);
 										processed=true;
 										bool brk=false;
 										while(!brk)
@@ -521,7 +530,15 @@ int handle(const char *inp, const char *name, char **root)
 															if(h2->data)
 															{
 																free(buf);
-																buf=h2->data;
+																buf=strdup(h2->data);
+																for(unsigned int i=0;i<h2->nparms;i++)
+																{
+																	if(strcmp(h2->p_tag[i], "length")==0)
+																		length=hgetlong(h2->p_value[i]);
+																}
+																char *raw=hex_decode(buf, strlen(buf));
+																l_addvar(&lv, "body", l_blo(raw, length));
+																free(raw);
 															}
 															brk=true;
 														}
@@ -564,6 +581,7 @@ int handle(const char *inp, const char *name, char **root)
 									}
 									free_lvalue(apply);
 								}
+								free_lvars(&lv);
 								bool useread=false;
 								if((!processed)&&(length>MAXBLOBLEN))
 								{
@@ -720,7 +738,7 @@ int add_processor(processor p)
 	return(newn);
 }
 
-lvalue app(lform lf)
+lvalue app(lform lf, __attribute__((unused)) lvars lv)
 {
 	fprintf(stderr, "proc[%u]: app: called\n", getpid());
 	if(!lf)

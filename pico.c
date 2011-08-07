@@ -88,20 +88,20 @@ int handle(const char *inp, const char *name, char **root)
 	if(h)
 	{
 		const char *from=NULL;
+		unsigned long length=0;
 		unsigned int i;
 		for(i=0;i<h->nparms;i++)
 		{
 			if(strcmp(h->p_tag[i], "from")==0)
-			{
 				from=h->p_value[i];
-				break;
-			}
+			else if(strcmp(h->p_tag[i], "length")==0)
+				length=hgetlong(h->p_value[i]);
 		}
 		if(strcmp(h->funct, "pico")==0)
 		{
 			if(!h->data)
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", name, getpid());
+				if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (pico)\n", name, getpid());
 				hmsg eh=new_hmsg("err", inp);
 				if(eh)
 				{
@@ -114,9 +114,15 @@ int handle(const char *inp, const char *name, char **root)
 			else
 			{
 				char *resp=picofy(h, name, (pdata){.root=*root});
-				hmsg r=new_hmsg("pico", resp);
+				ssize_t length=strlen(resp);
+				char *resph=hex_encode(resp, strlen(resp));
 				free(resp);
+				hmsg r=new_hmsg("pico", resph);
+				free(resph);
 				if(from) add_htag(r, "to", from);
+				char ln[17];
+				hputlong(ln, length);
+				add_htag(r, "length", ln);
 				hsend(1, r);
 				free_hmsg(r);
 			}
@@ -218,22 +224,34 @@ int handle(const char *inp, const char *name, char **root)
 
 char *picofy(hmsg h, const char *name, pdata p)
 {
+	const char *from=NULL;
+	unsigned long length=0;
+	for(unsigned int i=0;i<h->nparms;i++)
+	{
+		if(strcmp(h->p_tag[i], "from")==0)
+			from=h->p_value[i];
+		else if(strcmp(h->p_tag[i], "length")==0)
+			length=hgetlong(h->p_value[i]);
+	}
 	char *rv;
 	unsigned int l,i;
 	init_char(&rv, &l, &i);
-	char *d=h->data;
+	char *data=hex_decode(h->data, length<<1);
+	char *d=data;
 	if(!d) return(NULL);
 	while(*d)
 	{
 		if(strncmp(d, "<?pico", 6)==0)
 		{
+			d+=6;
+			while(isspace(*d)) d++;
 			char *e=strchr(d, '>');
 			if(!e)
 				append_char(&rv, &l, &i, *d++);
 			else
 			{
 				*e++=0;
-				char *f=strpbrk(d, "=>");
+				char *f=strchr(d, '=');
 				if(f)
 				{
 					*f++=0;
@@ -260,16 +278,21 @@ char *picofy(hmsg h, const char *name, pdata p)
 						}
 						if(pf)
 						{
-							char *pfd=slurp(pf);
+							char *pfd;
+							ssize_t length=hslurp(pf, &pfd);
 							fclose(pf);
 							hmsg ph=new_hmsg("pico", pfd);
 							free(pfd);
-							ph->nparms=h->nparms;
-							unsigned int i;
-							for(i=0;i<h->nparms;i++)
+							for(unsigned int i=0;i<h->nparms;i++)
 							{
-								ph->p_tag[i]=h->p_tag[i]?strdup(h->p_tag[i]):NULL;
-								ph->p_value[i]=h->p_value[i]?strdup(h->p_value[i]):NULL;
+								if(strcmp(h->p_tag[i], "length")==0)
+								{
+									char ln[17];
+									hputlong(ln, length);
+									add_htag(ph, "length", ln);
+								}
+								else
+									add_htag(ph, h->p_tag[i], h->p_value[i]);
 							}
 							char *pd=picofy(ph, name, p);
 							if(pd)
@@ -287,5 +310,6 @@ char *picofy(hmsg h, const char *name, pdata p)
 		else
 			append_char(&rv, &l, &i, *d++);
 	}
+	free(data);
 	return(rv);
 }

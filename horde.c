@@ -416,9 +416,11 @@ int main(int argc, char **argv)
 										memset(name, ' ', 12);
 										name[12]=0;
 										memcpy(name, workers[w].name, strlen(workers[w].name));
-										fprintf(stderr, "horde:\t%s%.12s[%05u]%s<- %05u :: %u rq, mean %gs\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].awaiting, workers[w].n_rqs, workers[w].n_rqs?workers[w].t_micro*1e-6/workers[w].n_rqs:0);
+										unsigned int m=workers[w].n_rqs?workers[w].t_micro*1e-3/workers[w].n_rqs:0;
+										fprintf(stderr, "horde:\t%s%.12s[%05u]%s<- %05u :: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].awaiting, workers[w].n_rqs, m);
 									}
-									fprintf(stderr, "horde:\t net         [     ] <-       :: %u rq, mean %gs\n", net_rqs, net_rqs?net_micro*1e-6/net_rqs:0);
+									unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
+									fprintf(stderr, "horde:\t net         [     ] <-       :: %u rq, mean %03ums\n", net_rqs, m);
 								}
 								else
 								{
@@ -638,7 +640,6 @@ int main(int argc, char **argv)
 												add_htag(h, "from", from);
 												hsend(workers[wproc].pipe[1], h);
 												workers[w].awaiting=workers[wproc].pid;
-												workers[wproc].accepting=false;
 												gettimeofday(&workers[wproc].current, NULL);
 											}
 										}

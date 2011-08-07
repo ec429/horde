@@ -568,18 +568,25 @@ int main(int argc, char **argv)
 						}
 					}
 				}
-				sendall(newhandle, "\n", 1, 0);
+				if((n=sendall(newhandle, "\n", 1, 0)))
+				{
+					if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(head, \\n) failed, %zd\n", name, getpid(), n);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
 				if(h->data) // otherwise assume status does not require one
 				{
 					char *data=hex_decode(h->data, strlen(h->data));
 					n=sendall(newhandle, data, length, 0);
 					if(n)
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd\n", name, getpid(), n);
+						if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", name, getpid(), n, strerror(errno));
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
+					free(data);
 				}
 				free_hmsg(h);
 			break;
