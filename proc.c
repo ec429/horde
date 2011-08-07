@@ -500,6 +500,7 @@ int handle(const char *inp, const char *name, char **root)
 								char *raw=hex_decode(buf, strlen(buf));
 								l_addvar(&lv, "body", l_blo(raw, length));
 								free(raw);
+								hmsg r=new_hmsg("proc", NULL);
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
@@ -507,12 +508,14 @@ int handle(const char *inp, const char *name, char **root)
 									//if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
 									if(l_asbool(apply))
 									{
-										hmsg h=new_hmsg(procs[proc].functor->funct, buf);
+										hmsg fh=new_hmsg(procs[proc].functor->funct, buf);
 										char ln[17];
 										hputlong(ln, length);
-										add_htag(h, "length", ln);
-										hsend(1, h);
-										free_hmsg(h);
+										add_htag(fh, "length", ln);
+										for(unsigned int i=0;i<h->nparms;i++)
+											add_htag(fh, h->p_tag[i], h->p_value[i]);
+										hsend(1, fh);
+										free_hmsg(fh);
 										processed=true;
 										bool brk=false;
 										while(!brk)
@@ -535,6 +538,10 @@ int handle(const char *inp, const char *name, char **root)
 																{
 																	if(strcmp(h2->p_tag[i], "length")==0)
 																		length=hgetlong(h2->p_value[i]);
+																	else if(strcmp(h2->p_tag[i], "to")==0);
+																	else if(strcmp(h2->p_tag[i], "from")==0);
+																	else
+																		add_htag(r, h2->p_tag[i], h2->p_value[i]);
 																}
 																char *raw=hex_decode(buf, strlen(buf));
 																l_addvar(&lv, "body", l_blo(raw, length));
@@ -589,7 +596,7 @@ int handle(const char *inp, const char *name, char **root)
 									buf=NULL;
 									useread=true;
 								}
-								hmsg r=new_hmsg("proc", buf);
+								r->data=buf;
 								char st[9];
 								hputshort(st, status);
 								add_htag(r, "status", st);
@@ -612,7 +619,6 @@ int handle(const char *inp, const char *name, char **root)
 								if(useread)
 									add_htag(r, "read", path);
 								hsend(1, r);
-								if(buf) free(buf);
 								free_hmsg(r);
 							}
 						}

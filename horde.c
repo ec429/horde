@@ -76,6 +76,7 @@ int main(int argc, char **argv)
 	unsigned short port=8000; // incoming port number
 	const char *root="root"; // virtual root
 	uid_t realuid=65534; // less-privileged uid, default 'nobody'
+	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
 	size_t maxbytesdaily=1<<29, bytestoday=0; // daily bandwidth limiter, default 0.5GB
 	debug=false; // write debugging info to stderr?
 	int arg;
@@ -93,6 +94,10 @@ int main(int argc, char **argv)
 		else if(strncmp(varg, "--uid=", 6)==0)
 		{
 			sscanf(varg+6, "%u", (unsigned int*)&realuid);
+		}
+		else if(strncmp(varg, "--gid=", 6)==0)
+		{
+			sscanf(varg+6, "%u", (unsigned int*)&realgid);
 		}
 		else if(strncmp(varg, "--mbd=", 6)==0)
 		{
@@ -145,7 +150,6 @@ int main(int argc, char **argv)
 			perror("horde: bind");
 			continue;
 		}
-		setuid(realuid);
 		break;
 	}
 	if(p==NULL)
@@ -153,9 +157,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "horde: failed to bind\n");
 		return(EXIT_FAILURE);
 	}
+	if(setgid(realgid)==-1)
+		perror("horde: setgid");
 	if(setuid(realuid)==-1)
 		perror("horde: setuid");
-	if(getuid()!=0)
+	if((getuid()==realuid)&&(getgid()==realgid))
 		if(debug) printf("horde: privs safely dropped\n");
 	freeaddrinfo(servinfo);
 	if(listen(sockfd, 10)==-1)
@@ -503,7 +509,7 @@ int main(int argc, char **argv)
 										gettimeofday(&now, NULL);
 										workers[w].n_rqs++;
 										workers[w].t_micro+=(now.tv_sec-workers[w].current.tv_sec)*1000000+now.tv_usec-workers[w].current.tv_usec;
-										if(strcmp(h->funct, "proc")==0)
+										if((strcmp(h->funct, "proc")==0)||(strcmp(h->funct, "err")==0))
 										{
 											workers[w].accepting=true;
 										}

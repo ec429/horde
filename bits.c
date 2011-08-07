@@ -76,7 +76,7 @@ ssize_t hslurp(FILE *fp, char **buf)
 	return(-1);
 }
 
-/*ssize_t dslurp(FILE *fp, char **buf)
+ssize_t dslurp(FILE *fp, char **buf)
 {
 	if(!buf) return(-1);
 	char * lout;
@@ -94,7 +94,7 @@ ssize_t hslurp(FILE *fp, char **buf)
 	if(lout)
 		return(i);
 	return(-1);
-}*/
+}
 
 void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 {

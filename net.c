@@ -34,8 +34,7 @@ bool debug;
 int main(int argc, char **argv)
 {
 	const char *name=argc?argv[0]:"net";
-	char *server=malloc(6+strlen(HTTPD_VERSION)+7+1);
-	sprintf(server, "horde/%s (Unix)", HTTPD_VERSION);
+	const char *server="horde/"HTTPD_VERSION;
 	debug=false;
 	while(check_msgs(name));
 	int newhandle;
@@ -500,6 +499,9 @@ int main(int argc, char **argv)
 				}
 				unsigned short status=200;
 				const char *statusmsg=NULL;
+				char *fserver; unsigned int fsl, fsi;
+				init_char(&fserver, &fsl, &fsi);
+				append_str(&fserver, &fsl, &fsi, server);
 				unsigned long length=0;
 				unsigned int i;
 				for(i=0;i<h->nparms;i++)
@@ -527,6 +529,11 @@ int main(int argc, char **argv)
 							hslurp(fp, &h->data);
 						}
 					}
+					else if(strcmp(h->p_tag[i], "server")==0)
+					{
+						append_char(&fserver, &fsl, &fsi, ' ');
+						append_str(&fserver, &fsl, &fsi, h->p_value[i]);
+					}
 				}
 				if(!statusmsg)
 					statusmsg=http_statusmsg(status);
@@ -536,7 +543,7 @@ int main(int argc, char **argv)
 				time_t timer = time(NULL);
 				struct tm *tm = gmtime(&timer);
 				size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
-				char *head=malloc(9+8+strlen(statusmsg)+1+6+datelen+1+8+strlen(server)+1+16+16+1+1);
+				char *head=malloc(9+8+strlen(statusmsg)+1+6+datelen+1+8+strlen(fserver)+1+16+16+1+1);
 				if(!head)
 				{
 					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *head): malloc: %s\n", name, getpid(), strerror(errno));
@@ -545,7 +552,8 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %lu\n", status, statusmsg, date, server, h->data?length:0);
+				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %lu\n", status, statusmsg, date, fserver, h->data?length:0);
+				free(fserver);
 				ssize_t n=sendall(newhandle, head, strlen(head), 0);
 				if(n)
 				{

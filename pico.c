@@ -16,6 +16,8 @@
 #include "bits.h"
 #include "libhorde.h"
 
+#define PICO_VER	"0.0.1"
+
 typedef struct
 {
 	const char *root;
@@ -23,7 +25,7 @@ typedef struct
 pdata;
 
 int handle(const char *inp, const char *name, char **root);
-char *picofy(hmsg h, const char *name, pdata p);
+char *picofy(const hmsg h, const char *name, pdata p);
 
 bool debug, pipeline;
 
@@ -123,6 +125,7 @@ int handle(const char *inp, const char *name, char **root)
 				char ln[17];
 				hputlong(ln, length);
 				add_htag(r, "length", ln);
+				add_htag(r, "server", "pico "PICO_VER);
 				hsend(1, r);
 				free_hmsg(r);
 			}
@@ -222,16 +225,28 @@ int handle(const char *inp, const char *name, char **root)
 	return(errupt);
 }
 
-char *picofy(hmsg h, const char *name, pdata p)
+char *picofy(const hmsg h, const char *name, pdata p)
 {
 	const char *from=NULL;
 	unsigned long length=0;
+	const char *ua=NULL;
 	for(unsigned int i=0;i<h->nparms;i++)
 	{
+		//if(debug) fprintf(stderr, "horde: %s[%d]: \t (%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
 		if(strcmp(h->p_tag[i], "from")==0)
 			from=h->p_value[i];
 		else if(strcmp(h->p_tag[i], "length")==0)
 			length=hgetlong(h->p_value[i]);
+		else if(strcmp(h->p_tag[i], "rqheader")==0)
+		{
+			off_t colon=strcspn(h->p_value[i], ":");
+			char *hname=strndup(h->p_value[i], colon++);
+			while(isspace(h->p_value[i][colon])) colon++;
+			http_header hdr=get_header(hname);
+			if(hdr==HTTP_HEADER_USER_AGENT)
+				ua=h->p_value[i]+colon;
+			free(hname);
+		}
 	}
 	char *rv;
 	unsigned int l,i;
@@ -267,7 +282,7 @@ char *picofy(hmsg h, const char *name, pdata p)
 				// now d is the name and f is the format (if any)
 				if(strcmp(d, "pfile")==0)
 				{
-					if(*f=='/')
+					if(f&&(*f=='/'))
 					{
 						FILE *pf=NULL;
 						char *fn=malloc(strlen(f)+strlen(p.root)+1);
@@ -301,8 +316,48 @@ char *picofy(hmsg h, const char *name, pdata p)
 							free_hmsg(ph);
 						}
 					}
-					
 				}
+				else if(strcmp(d, "log")==0)
+				{
+					FILE *pf=NULL;
+					if(f)
+						pf=fopen(f, "r");
+					if(pf)
+					{
+						char *pfd;
+						ssize_t length=dslurp(pf, &pfd);
+						fclose(pf);
+						for(off_t o=0;o<length;o++)
+						{
+							if(pfd[o]=='\n')
+								append_str(&rv, &l, &i, "<br />");
+							append_char(&rv, &l, &i, pfd[o]);
+						}
+						free(pfd);
+					}
+				}
+				else if(strcmp(d, "file")==0)
+				{
+					FILE *pf=NULL;
+					if(f)
+						pf=fopen(f, "r");
+					if(pf)
+					{
+						char *pfd;
+						ssize_t length=dslurp(pf, &pfd);
+						fclose(pf);
+						for(off_t o=0;o<length;o++)
+							append_char(&rv, &l, &i, pfd[o]);
+						free(pfd);
+					}
+				}
+				else if(strcmp(d, "useragent")==0)
+				{
+					if(ua) append_str(&rv, &l, &i, ua);
+					else append_char(&rv, &l, &i, '?');
+				}
+				else if(strcmp(d, "version")==0)
+					append_str(&rv, &l, &i, "horde "HTTPD_VERSION" / pico "PICO_VER);
 				// jump over the tag
 				d=e;
 			}
