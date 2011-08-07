@@ -18,17 +18,20 @@
 #include "bits.h"
 #include "libhorde.h"
 
+#define MAXBLOBLEN	(1<<16) // the maximum length of a file to send in-band unprocessed (instead of using 'read').  If any processing is needed, this is ignored
+
 typedef struct
 {
 	lform rule;
 	hmsg functor;
-	char **body;
 	enum {P_THRU, P_404} onfail;
 }
 processor;
 
 int handle(const char *inp, const char *name, char **root);
 int add_processor(processor p);
+
+lvalue app(lform lf);
 
 bool debug, pipeline;
 unsigned int nprocs;
@@ -126,7 +129,7 @@ int handle(const char *inp, const char *name, char **root)
 			statusmsg="???";
 		if(strcmp(h->funct, "add")==0)
 		{
-			processor newp=(processor){.rule=NULL, .functor=NULL, .body=NULL, .onfail=P_404};
+			processor newp=(processor){.rule=NULL, .functor=NULL, .onfail=P_404};
 			unsigned int i;
 			for(i=0;i<h->nparms;i++)
 			{
@@ -167,7 +170,7 @@ int handle(const char *inp, const char *name, char **root)
 					{
 						newp.rule=nrule;
 					}
-					break;
+					continue;
 				}
 				else if(strcmp(h->p_tag[i], "proc")==0)
 				{
@@ -175,10 +178,7 @@ int handle(const char *inp, const char *name, char **root)
 					{
 						hmsg nf=new_hmsg(h->p_value[i], NULL);
 						if(nf)
-						{
 							newp.functor=nf;
-							newp.body=&nf->data;
-						}
 					}
 				}
 				else if(strcmp(h->p_tag[i], "onfail")==0)
@@ -482,9 +482,9 @@ int handle(const char *inp, const char *name, char **root)
 							}
 							bool processed=false;
 							char *buf;
-							ssize_t length=hslurp(fp, &buf);
+							ssize_t length=dslurp(fp, &buf);
 							fclose(fp);
-							if(!buf)
+							if((!buf)||(length<0))
 							{
 								hmsg r=new_hmsg("err", NULL);
 								add_htag(r, "what", "allocation-failure");
@@ -493,11 +493,83 @@ int handle(const char *inp, const char *name, char **root)
 								free_hmsg(r);
 							}
 							else
-							{ // TODO loop through the processor list looking for matches
-								if((!processed)&&(length>(1<<16)))
+							{
+								unsigned int proc;
+								for(proc=0;proc<nprocs;proc++)
+								{
+									lvalue apply=l_eval(procs[proc].rule, app);
+									if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
+									if(l_asbool(apply))
+									{
+										hmsg h=procs[proc].functor;
+										h->data=buf;
+										hsend(1, h);
+										processed=true;
+										bool brk=false;
+										while(!brk)
+										{
+											char *resp=getl(STDIN_FILENO);
+											if(resp)
+											{
+												if(*resp)
+												{
+													hmsg h2=hmsg_from_str(resp);
+													if(h2)
+													{
+														if(strcmp(h2->funct, procs[proc].functor->funct)==0)
+														{
+															if(h2->data)
+															{
+																free(buf);
+																buf=h2->data;
+															}
+															brk=true;
+														}
+														else if(strcmp(h2->funct, "err")==0)
+														{
+															if(debug)
+															{
+																fprintf(stderr, "horde: %s[%d]: %s failed: %s\n", name, getpid(), procs[proc].functor->funct, h2->funct);
+																unsigned int i;
+																for(i=0;i<h2->nparms;i++)
+																{
+																	fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h2->p_tag[i], h2->p_value[i]);
+																	if(strcmp(h2->p_tag[i], "errno")==0)
+																	{
+																		fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h2->p_value[i])));
+																	}
+																}
+																fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h2->data);
+															}
+															hmsg eh=new_hmsg("err", inp);
+															if(eh)
+															{
+																add_htag(eh, "what", "chld-failure");
+																add_htag(eh, "fatal", NULL);
+																add_htag(eh, "chld", procs[proc].functor->funct);
+																add_htag(eh, "err", resp);
+																if(from) add_htag(eh, "to", from);
+																hsend(1, eh);
+																free_hmsg(eh);
+															}
+															hfin(EXIT_FAILURE);
+															return(EXIT_FAILURE);
+														}
+														free_hmsg(h2);
+													}
+												}
+												free(resp);
+											}
+										}
+									}
+									free_lvalue(apply);
+								}
+								bool useread=false;
+								if((!processed)&&(length>MAXBLOBLEN))
 								{
 									free(buf);
 									buf=NULL;
+									useread=true;
 								}
 								hmsg r=new_hmsg("proc", buf);
 								char st[9];
@@ -519,10 +591,10 @@ int handle(const char *inp, const char *name, char **root)
 								hputlong(ln, length);
 								add_htag(r, "length", ln);
 								if(from) add_htag(r, "to", from);
-								if((!processed)&&(length>(1<<16)))
+								if(useread)
 									add_htag(r, "read", path);
 								hsend(1, r);
-								free(buf);
+								if(buf) free(buf);
 								free_hmsg(r);
 							}
 						}
@@ -644,6 +716,19 @@ int add_processor(processor p)
 		nprocs=newn;
 		return(-1);
 	}
-	newp[newn]=p;
+	(procs=newp)[newn]=p;
 	return(newn);
+}
+
+lvalue app(lform lf)
+{
+	fprintf(stderr, "proc[%u]: app: called\n", getpid());
+	if(!lf)
+		return(l_str(NULL));
+	if(!lf->funct)
+		return(l_str(NULL));
+	if(lf->nchld&&!lf->chld)
+		return(l_str(NULL));
+	fprintf(stderr, "proc[%u]: app: unrecognised funct %s\n", getpid(), lf->funct);
+	return(l_str(NULL));
 }

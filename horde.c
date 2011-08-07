@@ -227,6 +227,97 @@ int main(int argc, char **argv)
 			return(EXIT_FAILURE);
 		}
 	}
+	FILE *rc=fopen(".horde", "r");
+	if(rc)
+	{
+		if(debug) fprintf(stderr, "horde: reading rc file '.horde'\n");
+		char *line;
+		while((line=fgetl(rc)))
+		{
+			if(!*line)
+			{
+				free(line);
+				if(feof(rc)) break;
+				continue;
+			}
+			size_t end;
+			while(line[(end=strlen(line))-1]=='\\')
+			{
+				line[end-1]=0;
+				char *cont=fgetl(rc);
+				if(!cont) break;
+				char *newl=realloc(line, strlen(line)+strlen(cont)+1);
+				if(!newl)
+				{
+					free(cont);
+					break;
+				}
+				strcat(newl, cont);
+				free(cont);
+				line=newl;
+			}
+			hmsg h=hmsg_from_str(line);
+			if(h)
+			{
+				if(strcmp(h->funct, "add")==0)
+				{
+					handler newh=(handler){.name=NULL, .prog=NULL, .n_init=0, .init=NULL, .only=false};
+					unsigned int i;
+					for(i=0;i<h->nparms;i++)
+					{
+						if(strcmp(h->p_tag[i], "name")==0)
+						{
+							newh.name=h->p_value[i];
+						}
+						else if(strcmp(h->p_tag[i], "prog")==0)
+						{
+							newh.prog=h->p_value[i];
+						}
+						else if(strcmp(h->p_tag[i], "only")==0)
+						{
+							newh.only=true;
+						}
+						else if(strcmp(h->p_tag[i], "stdinit")==0)
+						{
+							if(!newh.n_init)
+							{
+								newh.init=malloc((newh.n_init=2)*sizeof(hmsg));
+								if(!newh.init)
+								{
+									fprintf(stderr, "horde: allocation failure (newh.init): malloc: %s\n", strerror(errno));
+									return(EXIT_FAILURE);
+								}
+								newh.init[0]=new_hmsg("root", root);
+								if(!newh.init[0])
+								{
+									fprintf(stderr, "horde: allocation failure (newh.init[0]): new_hmsg: %s\n", strerror(errno));
+									return(EXIT_FAILURE);
+								}
+								newh.init[1]=new_hmsg("pipeline", NULL);
+								if(!newh.init[1])
+								{
+									fprintf(stderr, "horde: allocation failure (newh.init[1]): new_hmsg: %s\n", strerror(errno));
+									return(EXIT_FAILURE);
+								}
+							}
+						}
+					}
+					if(add_handler(newh)<0)
+					{
+						fprintf(stderr, "horde: add_handler() failed\n");
+						return(EXIT_FAILURE);
+					}
+				}
+			}
+			else if(debug)
+				fprintf(stderr, "horde: bad line in rc file: %s\n", line);
+			free(line);
+		}
+		fclose(rc);
+		if(debug) fprintf(stderr, "horde: finished reading rc file\n");
+	}
+	else
+		fprintf(stderr, "horde: failed to open rc file '.horde': fopen: %s\n", strerror(errno));
 	signal(SIGPIPE, SIG_IGN);
 	if(debug) printf("horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
@@ -527,13 +618,28 @@ int main(int argc, char **argv)
 										}
 										else
 										{
-											if(debug) fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
-											hmsg eh=new_hmsg("err", buf);
-											if(eh)
+											signed int wproc=find_worker(&nworkers, &workers, h->funct, true, &fdmax, &master);
+											if(wproc<0)
 											{
-												add_htag(eh, "what", "unrecognised-funct");
-												hsend(workers[w].pipe[1], eh);
-												if(eh) free_hmsg(eh);
+												if(debug) fprintf(stderr, "horde: unrecognised funct '%s'\n", h->funct);
+												hmsg eh=new_hmsg("err", buf);
+												if(eh)
+												{
+													add_htag(eh, "what", "unrecognised-funct");
+													hsend(workers[w].pipe[1], eh);
+													if(eh) free_hmsg(eh);
+												}
+											}
+											else
+											{
+												if(debug) fprintf(stderr, "horde: passing message on to %s[%u]\n", workers[wproc].name, workers[wproc].pid);
+												char *from=malloc(16+strlen(workers[w].name));
+												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
+												add_htag(h, "from", from);
+												hsend(workers[wproc].pipe[1], h);
+												workers[w].awaiting=workers[wproc].pid;
+												workers[wproc].accepting=false;
+												gettimeofday(&workers[wproc].current, NULL);
 											}
 										}
 									}

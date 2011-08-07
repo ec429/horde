@@ -528,6 +528,7 @@ void free_lform(lform lf)
 
 lvalue l_eval(lform lf, lvalue app(lform lf))
 {
+	//fprintf(stderr, "l_eval %p (%s)\n", (void *)lf, lf?lf->funct:NULL);
 	if(!lf)
 		return(l_str(NULL));
 	if(!lf->funct)
