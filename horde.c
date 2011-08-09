@@ -79,42 +79,31 @@ int main(int argc, char **argv)
 	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
 	size_t maxbytesdaily=1<<29, bytestoday=0; // daily bandwidth limiter, default 0.5GB
 	debug=false; // write debugging info to stderr?
+	bool pipeline=true; // run daemons in pipelined mode? (generally preferred for efficiency reasons; however debugging may be easier in single-invoke mode)
 	int arg;
 	for(arg=1;arg<argc;arg++)
 	{
 		const char *varg=argv[arg];
 		if(strncmp(varg, "--port=", 7)==0)
-		{
 			sscanf(varg+7, "%hu", &port);
-		}
 		else if(strncmp(varg, "--root=", 7)==0)
-		{
 			root=varg+7;
-		}
 		else if(strncmp(varg, "--uid=", 6)==0)
-		{
 			sscanf(varg+6, "%u", (unsigned int*)&realuid);
-		}
 		else if(strncmp(varg, "--gid=", 6)==0)
-		{
 			sscanf(varg+6, "%u", (unsigned int*)&realgid);
-		}
 		else if(strncmp(varg, "--mbd=", 6)==0)
-		{
 			sscanf(varg+6, "%zu", &maxbytesdaily);
-		}
 		else if(strcmp(varg, "--debug")==0)
-		{
 			debug=true;
-		}
 		else if(strcmp(varg, "--no-debug")==0)
-		{
 			debug=false;
-		}
+		else if(strcmp(varg, "--pipe")==0)
+			pipeline=true;
+		else if(strcmp(varg, "--no-pipe")==0)
+			pipeline=false;
 		else
-		{
 			fprintf(stderr, "horde: unrecognised argument %s (ignoring)\n", varg);
-		}
 	}
 	char portno[6];
 	sprintf(portno, "%hu", port);
@@ -202,7 +191,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
 			return(EXIT_FAILURE);
 		}
-		handler proc=(handler){.name="proc", .prog="./proc", .n_init=2, .only=false};
+		handler proc=(handler){.name="proc", .prog="./proc", .n_init=(pipeline?2:1), .only=false};
 		proc.init=malloc(proc.n_init*sizeof(hmsg));
 		if(!proc.init)
 		{
@@ -215,11 +204,14 @@ int main(int argc, char **argv)
 			fprintf(stderr, "horde: allocation failure (proc.init[0]): new_hmsg: %s\n", strerror(errno));
 			return(EXIT_FAILURE);
 		}
-		proc.init[1]=new_hmsg("pipeline", NULL);
-		if(!proc.init[1])
+		if(pipeline)
 		{
-			fprintf(stderr, "horde: allocation failure (proc.init[1]): new_hmsg: %s\n", strerror(errno));
-			return(EXIT_FAILURE);
+			proc.init[1]=new_hmsg("pipeline", NULL);
+			if(!proc.init[1])
+			{
+				fprintf(stderr, "horde: allocation failure (proc.init[1]): new_hmsg: %s\n", strerror(errno));
+				return(EXIT_FAILURE);
+			}
 		}
 		if(add_handler(proc)<0)
 		{
@@ -287,7 +279,7 @@ int main(int argc, char **argv)
 						{
 							if(!newh.n_init)
 							{
-								newh.init=malloc((newh.n_init=2)*sizeof(hmsg));
+								newh.init=malloc((newh.n_init=(pipeline?2:1))*sizeof(hmsg));
 								if(!newh.init)
 								{
 									fprintf(stderr, "horde: allocation failure (newh.init): malloc: %s\n", strerror(errno));
@@ -299,11 +291,14 @@ int main(int argc, char **argv)
 									fprintf(stderr, "horde: allocation failure (newh.init[0]): new_hmsg: %s\n", strerror(errno));
 									return(EXIT_FAILURE);
 								}
-								newh.init[1]=new_hmsg("pipeline", NULL);
-								if(!newh.init[1])
+								if(pipeline)
 								{
-									fprintf(stderr, "horde: allocation failure (newh.init[1]): new_hmsg: %s\n", strerror(errno));
-									return(EXIT_FAILURE);
+									newh.init[1]=new_hmsg("pipeline", NULL);
+									if(!newh.init[1])
+									{
+										fprintf(stderr, "horde: allocation failure (newh.init[1]): new_hmsg: %s\n", strerror(errno));
+										return(EXIT_FAILURE);
+									}
 								}
 							}
 						}
