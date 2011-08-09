@@ -695,7 +695,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 	}
 	else if(strcmp(lf->funct, "subst")==0)
 	{
-		if(lf->nchld<3) return(l_str(NULL)); // XXX memory leak
+		if(lf->nchld<3) return(l_str(NULL));
 		lvalue index=l_eval(&lf->chld[0], lv, app), length=l_eval(&lf->chld[1], lv, app);
 		if(index.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
 		if(length.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
@@ -751,10 +751,12 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 			case L_NUM:
 				return(v);
 			case L_STR:
-				if(sscanf(v.data.str, "%lu", &num)==1) return(l_num(num)); // XXX memory leak
+				if(sscanf(v.data.str, "%lu", &num)==1) {free_lvalue(v);return(l_num(num));}
+				free_lvalue(v);
 				return(l_num(0));
 			case L_BLO:;
-				if(sscanf(v.data.blo.bytes, "%lu", &num)==1) return(l_num(num)); // XXX memory leak
+				if(sscanf(v.data.blo.bytes, "%lu", &num)==1) {free_lvalue(v);return(l_num(num));}
+				free_lvalue(v);
 				return(l_num(0));
 		}
 	}
@@ -775,7 +777,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 				char *str=malloc(v.data.blo.len+1);
 				memcpy(str, v.data.blo.bytes, v.data.blo.len);
 				str[v.data.blo.len]=0;
-				free(v.data.blo.bytes);
+				free_lvalue(v);
 				return(l_str(str));
 			}
 		}
