@@ -7,3 +7,5 @@ If you need to implement functionality involving both a gatekeeper to a shared r
 TODO: cull excessive idle workers.
 TODO: make a generic version of the read loops, perhaps 'hmsg hmsg_expect(const char *funct);'
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
+TODO: instead of putting all the horde and proc knowledge into single '.horde' and '.proc' files, search for '*.horde' and '*.proc' files and read them all.  Thus, pico will have a 'pico.horde' (add (name pico) (prog ./pico) (stdinit)) and a 'pico.proc' (add (rule [or [= [ext]["pico"]] [and [= [subst [0][5][ctype]]["text/"]] [grep [str [body]]["<?pico"]]]]) (proc pico) (onfail passthru)).
+TODO: make proc pay attention to the (onfail) attribute
