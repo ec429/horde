@@ -236,7 +236,7 @@ int handle(const char *inp, const char *name, char **root)
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
-									if(from) add_htag(r, "to", from);
+									if(from) add_htag(r, "from", from);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -245,7 +245,7 @@ int handle(const char *inp, const char *name, char **root)
 									if(debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>403 -- Forbidden</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 									char st[9];
-									hputshort(st, 404);
+									hputshort(st, 403);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
 									if(from) add_htag(r, "to", from);
@@ -336,7 +336,7 @@ int handle(const char *inp, const char *name, char **root)
 								hputshort(st, 403);
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", "Forbidden");
-								if(from) add_htag(r, "to", from);
+								if(from) add_htag(r, "from", from);
 								hsend(1, r);
 								free_hmsg(r);
 							}
@@ -383,7 +383,7 @@ int handle(const char *inp, const char *name, char **root)
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
-									if(from) add_htag(r, "to", from);
+									if(from) add_htag(r, "from", from);
 									hsend(1, r);
 									free_hmsg(r);
 								break;
@@ -411,7 +411,7 @@ int handle(const char *inp, const char *name, char **root)
 								hsend(1, ex);
 								free_hmsg(ex);
 								bool exed=false;
-								while(!exed)
+								while(!exed) // TODO: make a generic version of these read loops (hmsg hmsg_expect(const char *funct); perhaps)
 								{
 									char *inp2=getl(STDIN_FILENO);
 									if(inp2)
@@ -495,7 +495,7 @@ int handle(const char *inp, const char *name, char **root)
 							else
 							{
 								lvars lv=NOVARS;
-								l_addvar(&lv, "ext", l_str(ext+1));
+								if(ext) l_addvar(&lv, "ext", l_str(ext+1));
 								l_addvar(&lv, "ctype", l_str(content_type));
 								char *raw=hex_decode(buf, strlen(buf));
 								l_addvar(&lv, "body", l_blo(raw, length));
@@ -603,10 +603,10 @@ int handle(const char *inp, const char *name, char **root)
 								add_htag(r, "statusmsg", statusmsg);
 								if(content_type)
 								{
-									char *ctype=malloc(16+strlen(content_type));
+									char *ctype=malloc(16+strlen(content_type)+16);
 									if(ctype)
 									{
-										sprintf(ctype, "Content-Type: %s", content_type);
+										sprintf(ctype, "Content-Type: %s; charset=UTF-8", content_type);
 										add_htag(r, "header", ctype);
 										free(ctype);
 									}

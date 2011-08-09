@@ -40,6 +40,7 @@ int main(int argc, char **argv)
 	int newhandle;
 	struct sockaddr remote;
 	socklen_t addr_size=sizeof(remote);
+	time_t stamp=0;
 	if((newhandle=accept(3, (struct sockaddr *)&remote, &addr_size))==-1)
 	{
 		if(debug)
@@ -53,7 +54,11 @@ int main(int argc, char **argv)
 	else
 	{
 		close(3); // don't need this any more
-		hmsg ac=new_hmsg("accepted", NULL);
+		stamp=time(NULL);
+		char date[256];
+		struct tm *tm = gmtime(&stamp);
+		strftime(date, sizeof(date), "%F %H:%M:%S", tm);
+		hmsg ac=new_hmsg("accepted", date);
 		if(!ac)
 		{
 			if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg ac): new_hmsg: %s", name, getpid(), strerror(errno));
@@ -64,7 +69,7 @@ int main(int argc, char **argv)
 		}
 		hsend(1, ac);
 		free_hmsg(ac);
-		if(debug) fprintf(stderr, "horde: %s[%d]: accepted\n", name, getpid());
+		if(debug) fprintf(stderr, "horde: %s[%d]: accepted at %s\n", name, getpid(), date);
 	}
 	bool is6=false; // is this IPv6 (else v4)?
 	switch(((struct sockaddr_in *)&remote)->sin_family)

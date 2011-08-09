@@ -468,6 +468,7 @@ int main(int argc, char **argv)
 							if(*buf)
 							{
 								//fprintf(stderr, "horde: < '%s'\n", buf);
+								// TODO: handle the case when eg. a proc instance makes a tail-recursive proc call
 								hmsg h=hmsg_from_str(buf);
 								if(h)
 								{
