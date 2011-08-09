@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -786,6 +787,9 @@ int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
 
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w)
 {
+	struct stat stbuf;
+	if(stat(prog, &stbuf)) return(-1); // not there (or can't stat for some other reason)
+	if(access(prog, X_OK)) return(-1); // can't execute
 	worker new=(worker){.prog=prog, .name=name, .special=NONE, .autoreplace=false};
 	int s[2][2];
 	if(pipe(s[0])==-1)
