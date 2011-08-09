@@ -1,0 +1,5 @@
+Release Notes for recent versions
+
+0.0.1	2011-08-09
+Somewhat primitive alpha-quality release.  It works (it serves web pages and detects when to run the 'pico' preprocessor), but several of the interfaces are Wrong and Likely to Change.
+Use of this version in production environments is not recommended; moreover, effort expended on writing extension modules is liable to be wasted if/when interfaces change.

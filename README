@@ -1,0 +1,93 @@
+-=====--------------------------------------------------------
+:Horde: An HTTP server designed around message-passing daemons
+-=====--------------------------------------------------------
+
+This document is a cross between a specification, a manual, and a plan of future development; these three functions will be separated out as the project matures.
+
+Release Notes: see NEWS
+License details: see COPYING
+
+How the server works:
+---------------------
+The actual 'horde' process is the dispatcher, with the following functions:
+	Is the initial process, holds the listen()ing socket, has a pipe() to each child produced
+	When a request comes in on socket, fork() a 'net' process
+	When a request comes in over a pipe, hand it off to whatever process is registered to handle it (if none are running, fork() a new one)
+	When a response comes in over a pipe, send it to the appropriate recipient.
+Every child process (with the exception of 'net') is a 'handler', which is registered with the dispatcher by an entry in the .horde file.
+The core handlers are:
+	net		Calls accept() on the listening socket, does protocol with HTTP.  Calls 'path', 'ext' and 'log', and 'proc' to obtain the entity body
+	proc	Loads a resource from disk, and applies appropriate preprocessing to it.  Calls appropriate preprocessor daemons
+	path	Performs path normalisation.  Since the core function (normalise_path()) is part of libhorde, path is *deprecated* and will be removed in a later version
+	ext		Determines the Content-Type (MIMEtype) of a document based on its extension.  Is a daemon (rather than a libhorde function) in order to amortise the cost of reading in /etc/mime.types
+	log		Writes lines to the log file (/var/log/horde).  Exists to serialise these writes, obviating the need for locking
+The standard way of extending horde's capabilities is by registering processors with 'proc'; this is done by an entry in the .proc file.
+One preprocessor is provided as an example of how the proc system works; it is called 'pico' and emulates the dynamic rewriting functions of the "httpico" webserver, an earlier (and somewhat unsuccessful) project by the same developer.  (The main reason for implementing 'pico' was that the author had used its features throughout his own website)
+An important pitfall to note is that the buffer is actually supplied to preprocessors in the form of a hexadecimal dump; this is because libhorde (at present) uses 'char *'-style (NUL-terminated) strings for the payload of horde messages, and Bad Things sometimes happen to binary formats if you use C's string library on them (thanks to embedded \0s).  However, since an explicit length parameter is passed around (and nasty-looking horde message payloads get transparently hex-encoded by libhorde anyway for transport), this may be changed in the future.  Therefore, make sure your code starts with hex_decode and ends with hex_encode, so that when the flag day happens you can change your module with minimal fuss.
+
+Readiness:
+----------
+All workers that may conceivably need to issue sub-requests must use the (ready) message to signal that they are able to take a new request.
+All workers of which only one instance may exist must always be ready to accept a new request; this usually means that they never issue sub-requests and use their stdin-buffer to queue requests.
+A module uses the 'only' flag to indicate in which of the above categories it resides.  At present the dispatcher assumes these categories are mutually exclusive and exhaustive.
+
+If you need to implement functionality involving both a gatekeeper to a shared resource and the use of subrequests (eg. to gather state), you should split it into two modules, so that the gatekeeper merely becomes one of the subrequests of the application logic / driver module.
+
+Plans:
+------
+TODO: cull excessive idle workers.
+TODO: make a generic version of the read loops, perhaps 'hmsg hmsg_expect(const char *funct);'
+TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
+TODO: instead of putting all the horde and proc knowledge into single '.horde' and '.proc' files, search for '*.horde' and '*.proc' files and read them all.  Thus, pico will have a 'pico.horde' (add (name pico) (prog ./pico) (stdinit)) and a 'pico.proc' (add (rule [or [= [ext]["pico"]] [and [= [subst [0][5][ctype]]["text/"]] [grep [str [body]]["<?pico"]]]]) (proc pico) (onfail passthru)).  This allows modules to be installed automatically
+TODO: make proc pay attention to the (onfail) attribute
+TODO: allow '.horde'-style handler registration at runtime by providing a similar entry on the dispatcher's standard input
+TODO: dike out 'path'; net should use normalise_path() (and so should everyone else)
+
+Sample Transcript:
+------------------
+This section is not entirely accurate: the following transcript, while a reasonable way of doing things, does not correspond to the current implementation (for instance, path resolution in this case actually triggers a 302; proc doesn't use a sock_un but instead reads/writes the data through disp).  The name 'disp' is used to represent the dispatcher, whose actual executable name is 'horde'.  This transcript was originally produced not for documentation but as a rough specification of "how things should work" during the early stages of development.
+
+Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces or begin with a '#' (wh. is used to indicate hex-encoding).  User-input data may be hex-encoded unnecessarily.  [] denotes variables.
+	disp fork() exec(path)
+	disp fork() exec(stats)
+	C>disp connect
+	disp fork() exec(net)
+	net accept()
+	C>net: GET / HTTP/1.0
+	net>disp: (path /)
+	disp>path: (path (from net) /)
+	path>disp: (path (to net) /index.html)
+	disp>net: (path /index.html)
+	net>disp: (proc /index.html)
+	disp fork() exec(proc)
+	disp>proc: (proc (from net) /index.html)
+	proc reads index.html; it contains some <?pico> tags and otherwise matches no rules
+	proc opens a sock_un, /tmp/.horde_[pid] (hereonin 'sock')
+	proc>disp: (pico /tmp/.horde_[pid])
+	disp fork() exec(pico)
+	disp>pico: (pico (from proc) /tmp/.horde_[pid])
+	pico>sock>proc: (waiting pico)
+	proc>sock>pico: (pico {[page html data]})
+	pico>disp: (uptime)
+	disp>pico: (uptime {horde: 8 days, 15:37:16 | system: 73 days, 01:49:58})
+	pico>sock>proc: (pico {[page html data, pico-processed]})
+	pico closes sock
+	proc closes sock
+	proc>disp (proc (to net) {[page html data, pico-processed]})
+	disp>net (proc {[page html data, pico-processed]})
+	net>C: the HTTP response, 200 OK and all the data
+	net>disp (stats (time [time_t]) (ip [IP]) (status 200) (bytes [bytes]) (file /index.html) /*...etc...*/ append)
+	disp>stats (stats (from net) /*...etc...*/ append)
+	stats>disp (stats (to net) append)
+	disp>net (stats append)
+	/* we assume pipelining was not requested */
+	net>disp (close)
+	net return()s
+	stdin>disp: (shutdown)
+	disp>* (shutdown)
+	path return()s
+	proc return()s
+	stats return()s
+	pico return()s
+	disp>stdout: (shutdown (when now))
+	disp return()s
