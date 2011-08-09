@@ -1,0 +1,4 @@
+All workers that may conceivably need to issue sub-requests must use the (ready) message to signal that they are able to take a new request.
+All workers of which only one instance may exist must always be ready to accept a new request; this usually means that they never issue sub-requests and use their stdin-buffer to queue requests.
+
+If you need to implement functionality involving both a gatekeeper to a shared resource and the use of subrequests (eg. to gather state), you should split it into two modules, so that the gatekeeper merely becomes one of the subrequests of the application logic / driver module.
