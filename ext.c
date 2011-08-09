@@ -151,7 +151,7 @@ void sys_mime_lib(const char *name)
 				if(!ns)
 				{
 					lib.nsystem=nsystem;
-					fprintf(stderr, "horde: %s[%d]: allocation failure wihle building mime_lib: realloc: %s\n", name, getpid(), strerror(errno));
+					fprintf(stderr, "horde: %s[%d]: allocation failure while building mime_lib: realloc: %s\n", name, getpid(), strerror(errno));
 				}
 				else
 				{
@@ -164,7 +164,7 @@ void sys_mime_lib(const char *name)
 						if(!ne)
 						{
 							new.nexts=next;
-							fprintf(stderr, "horde: %s[%d]: allocation failure wihle building mime_lib: realloc: %s\n", name, getpid(), strerror(errno));
+							fprintf(stderr, "horde: %s[%d]: allocation failure while building mime_lib: realloc: %s\n", name, getpid(), strerror(errno));
 						}
 						else
 						{
