@@ -14,6 +14,7 @@ The actual 'horde' process is the dispatcher, with the following functions:
 	When a request comes in on socket, fork() a 'net' process
 	When a request comes in over a pipe, hand it off to whatever process is registered to handle it (if none are running, fork() a new one)
 	When a response comes in over a pipe, send it to the appropriate recipient.
+
 Every child process (with the exception of 'net') is a 'handler', which is registered with the dispatcher by an entry in the .horde file.
 The core handlers are:
 	net		Calls accept() on the listening socket, does protocol with HTTP.  Calls 'path', 'ext' and 'log', and 'proc' to obtain the entity body
@@ -21,9 +22,13 @@ The core handlers are:
 	path	Performs path normalisation.  Since the core function (normalise_path()) is part of libhorde, path is *deprecated* and will be removed in a later version
 	ext		Determines the Content-Type (MIMEtype) of a document based on its extension.  Is a daemon (rather than a libhorde function) in order to amortise the cost of reading in /etc/mime.types
 	log		Writes lines to the log file (/var/log/horde).  Exists to serialise these writes, obviating the need for locking
+	
 The standard way of extending horde's capabilities is by registering processors with 'proc'; this is done by an entry in the .proc file.
 One preprocessor is provided as an example of how the proc system works; it is called 'pico' and emulates the dynamic rewriting functions of the "httpico" webserver, an earlier (and somewhat unsuccessful) project by the same developer.  (The main reason for implementing 'pico' was that the author had used its features throughout his own website)
+
 An important pitfall to note is that the buffer is actually supplied to preprocessors in the form of a hexadecimal dump; this is because libhorde (at present) uses 'char *'-style (NUL-terminated) strings for the payload of horde messages, and Bad Things sometimes happen to binary formats if you use C's string library on them (thanks to embedded \0s).  However, since an explicit length parameter is passed around (and nasty-looking horde message payloads get transparently hex-encoded by libhorde anyway for transport), this may be changed in the future.  Therefore, make sure your code starts with hex_decode and ends with hex_encode, so that when the flag day happens you can change your module with minimal fuss.
+
+Good things to note: because all the preprocessor daemons communicate only through textual IPC (using a simple RPC protocol), they can be implemented in a wide variety of languages, although it helps if you have a binding for the hmsg-related libhorde functions.
 
 Readiness:
 ----------
@@ -32,6 +37,16 @@ All workers of which only one instance may exist must always be ready to accept 
 A module uses the 'only' flag to indicate in which of the above categories it resides.  At present the dispatcher assumes these categories are mutually exclusive and exhaustive.
 
 If you need to implement functionality involving both a gatekeeper to a shared resource and the use of subrequests (eg. to gather state), you should split it into two modules, so that the gatekeeper merely becomes one of the subrequests of the application logic / driver module.
+
+proc Rules:
+-----------
+The preprocessor-matching rules in .proc are expression trees based very loosely on LISP forms (except using [square brackets] instead of (parens) because the latter are already used by the horde message protocol.  In a future version the roles of these two characters may be swapped).  For instance, the rule used by 'pico' is:
+	[or [= [ext]["pico"]] [and [= [subst [0][5][ctype]]["text/"]] [grep [str [body]]["<?pico"]]]]
+In a more conventional notation, this would be something like
+	(ext=="pico") || ((ctype[0:5]=="text/") && (grep((str)body, "<?pico")))
+There are three fundamental kinds of node here: operators, constants, and variables.  Operators include things like [=] and [or], which do the obvious things with their arguments, but also more elaborate functions like [grep] and [subst], the latter of which forms a substring from its third argument based on the first two.  Most of these operators are defined to do something useful if given too many arguments; for instance [= [a][b][c]] returns (a==b)&&(a==c), while [or [a][b][c]] returns a||b||c.  In fact it should be noted that operators short-circuit where natural, particularly [and] and [or].
+The constants are things like ["text/"] (a string) and [0] and [5] (integers).  There is a third data type which cannot be supplied as a constant, and that is the "BLO" or "Binary Large Object", an array of bytes which carries its length with it (instead of using NUL-termination).
+Variables are provided by the calling environment (in this case 'proc', but the expression interpreter is sufficiently general to be usable elsewhere) and include such things as [ext] (the file's extension) and [ctype] (the content-type determined by 'ext').  There is also [body], which is a BLO containing the body of the resource; because [grep] only operates on strings this is cast to string type with the [str] operator (a reasonable thing to do because files of type text/* rarely contain embedded NULs).  There are also casts for [num] and [blo]; casting to/from numeric (integer) type converts like printf-family %lu.
 
 Plans:
 ------
