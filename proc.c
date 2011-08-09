@@ -299,17 +299,8 @@ int handle(const char *inp, const char *name, char **root)
 								free_hmsg(r);
 							break;
 						}
-						if(pipeline)
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
-						}
-						else
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
-							errupt++;
-						}
 						free(path);
-						return(errupt);
+						goto procdone;
 					}
 					else
 					{
@@ -626,9 +617,13 @@ int handle(const char *inp, const char *name, char **root)
 				}
 				free(path);
 			}
+			procdone:
 			if(pipeline)
 			{
 				if(debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
+				hmsg ready=new_hmsg("ready", NULL);
+				hsend(1, ready);
+				free_hmsg(ready);
 			}
 			else
 			{

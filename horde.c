@@ -42,9 +42,9 @@ typedef struct
 	const char *prog, *name;
 	int pipe[2];
 	enum {NONE, INP, SOCK} special;
-	bool accepting; // for 'net's and handling accept()s on SOCKs
+	bool accepting; // for 'net's and handling accept()s on SOCKs; (ready) status on all others
 	bool autoreplace;
-	pid_t awaiting;
+	pid_t blocks; // who is blocking on us?
 	unsigned long t_micro;
 	unsigned int n_rqs;
 	struct timeval current;
@@ -175,13 +175,13 @@ int main(int argc, char **argv)
 	unsigned int nworkers=0;
 	worker *workers=NULL;
 	{
-		worker inp=(worker){.pid=0, .prog=NULL, .name="<stdin>", .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false, .awaiting=0};
+		worker inp=(worker){.pid=0, .prog=NULL, .name="<stdin>", .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false};
 		if(addworker(&nworkers, &workers, inp)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on INP\n");
 			return(EXIT_FAILURE);
 		}
-		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .accepting=true, .autoreplace=true, .awaiting=0};
+		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .accepting=true, .autoreplace=true};
 		if(addworker(&nworkers, &workers, sock)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on SOCK\n");
@@ -423,10 +423,10 @@ int main(int argc, char **argv)
 										name[12]=0;
 										memcpy(name, workers[w].name, strlen(workers[w].name));
 										unsigned int m=workers[w].n_rqs?workers[w].t_micro*1e-3/workers[w].n_rqs:0;
-										fprintf(stderr, "horde:\t%s%.12s[%05u]%s<- %05u :: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].awaiting, workers[w].n_rqs, m);
+										fprintf(stderr, "horde:\t%s%.12s[%05u]%s:: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].n_rqs, m);
 									}
 									unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
-									fprintf(stderr, "horde:\t net         [     ] <-       :: %u rq, mean %03ums\n", net_rqs, m);
+									fprintf(stderr, "horde:\t net         [     ] :: %u rq, mean %03ums\n", net_rqs, m);
 								}
 								else
 								{
@@ -453,7 +453,6 @@ int main(int argc, char **argv)
 								{
 									if(debug) fprintf(stderr, "horde: passed on to new instance of net[%d]\n", pid);
 									workers[w].accepting=false; // now no more connections until we get an (accepted) - to prevent running several copies of net
-									workers[w].awaiting=pid;
 									gettimeofday(&workers[w].current, NULL);
 								}
 								if(worker_set(nworkers, workers, &fdmax, &master))
@@ -478,6 +477,7 @@ int main(int argc, char **argv)
 									{
 										if(strcmp(h->p_tag[i], "to")==0)
 										{
+											to=true; // the module, at least, believes its work to be done
 											char *l=strchr(h->p_value[i], '[');
 											if(!l) continue;
 											char *r=strchr(l, ']');
@@ -487,21 +487,14 @@ int main(int argc, char **argv)
 											unsigned int who;
 											for(who=0;who<nworkers;who++)
 											{
+												if(p!=workers[who].pid) continue;
 												if(strncmp(h->p_value[i], workers[who].name, l-h->p_value[i])) continue;
-												if(p==workers[who].pid)
-												{
-													if(debug) fprintf(stderr, "horde: passing response on to %s[%u]\n", workers[who].name, workers[who].pid);
-													if(workers[who].awaiting==workers[w].pid)
-														workers[who].awaiting=0;
-													hsend(workers[who].pipe[1], h);
-													to=true;
-													break;
-												}
+												if(debug) fprintf(stderr, "horde: passing response on to %s[%u]\n", workers[who].name, workers[who].pid);
+												hsend(workers[who].pipe[1], h);
+												break;
 											}
-											if(who==nworkers)
-											{
+											if(who==nworkers) // message dropped on the floor
 												fprintf(stderr, "horde: couldn't find recipient %s\n", h->p_value[i]);
-											}
 										}
 									}
 									if(to)
@@ -510,10 +503,6 @@ int main(int argc, char **argv)
 										gettimeofday(&now, NULL);
 										workers[w].n_rqs++;
 										workers[w].t_micro+=(now.tv_sec-workers[w].current.tv_sec)*1000000+now.tv_usec-workers[w].current.tv_usec;
-										if((strcmp(h->funct, "proc")==0)||(strcmp(h->funct, "err")==0))
-										{
-											workers[w].accepting=true;
-										}
 									}
 									else
 									{
@@ -533,6 +522,11 @@ int main(int argc, char **argv)
 												fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
 											}
 										}
+										else if(strcmp(h->funct, "ready")==0)
+										{
+											if(debug) fprintf(stderr, "horde: %s[%u] ready\n", workers[w].name, workers[w].pid);
+											workers[w].accepting=true;
+										}
 										else if(strcmp(h->funct, "path")==0)
 										{
 											signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
@@ -551,8 +545,8 @@ int main(int argc, char **argv)
 												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
 												add_htag(h, "from", from);
 												hsend(workers[wpath].pipe[1], h);
-												workers[w].awaiting=workers[wpath].pid;
 												gettimeofday(&workers[wpath].current, NULL);
+												workers[wpath].blocks=workers[w].pid;
 											}
 										}
 										else if(strcmp(h->funct, "proc")==0)
@@ -573,9 +567,9 @@ int main(int argc, char **argv)
 												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
 												add_htag(h, "from", from);
 												hsend(workers[wproc].pipe[1], h);
-												workers[w].awaiting=workers[wproc].pid;
 												workers[wproc].accepting=false;
 												gettimeofday(&workers[wproc].current, NULL);
+												workers[wproc].blocks=workers[w].pid;
 											}
 										}
 										else if(strcmp(h->funct, "ext")==0)
@@ -596,8 +590,8 @@ int main(int argc, char **argv)
 												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
 												add_htag(h, "from", from);
 												hsend(workers[wext].pipe[1], h);
-												workers[w].awaiting=workers[wext].pid;
 												gettimeofday(&workers[wext].current, NULL);
+												workers[wext].blocks=workers[w].pid;
 											}
 										}
 										else if(strcmp(h->funct, "accepted")==0)
@@ -605,11 +599,8 @@ int main(int argc, char **argv)
 											unsigned int wsock;
 											for(wsock=0;wsock<nworkers;wsock++)
 											{
-												if((workers[wsock].special==SOCK)&&(workers[wsock].awaiting==workers[w].pid)&&!workers[wsock].accepting)
-												{
+												if(workers[wsock].special==SOCK)
 													workers[wsock].accepting=true;
-													workers[wsock].awaiting=0;
-												}
 											}
 										}
 										else if(strcmp(h->funct, "err")==0)
@@ -619,9 +610,7 @@ int main(int argc, char **argv)
 											{
 												fprintf(stderr, "horde:\t(%s|%s)\n", h->p_tag[i], h->p_value[i]);
 												if(strcmp(h->p_tag[i], "errno")==0)
-												{
 													fprintf(stderr, "horde:\t\t%s\n", strerror(hgetlong(h->p_value[i])));
-												}
 												fprintf(stderr, "horde:\t%s\n", h->data);
 											}
 										}
@@ -646,7 +635,9 @@ int main(int argc, char **argv)
 												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
 												add_htag(h, "from", from);
 												hsend(workers[wproc].pipe[1], h);
-												workers[w].awaiting=workers[wproc].pid;
+												if(!workers[wproc].autoreplace) // ie. !only
+													workers[wproc].accepting=false;
+												workers[wproc].blocks=workers[w].pid;
 												gettimeofday(&workers[wproc].current, NULL);
 											}
 										}
@@ -717,8 +708,8 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 		return(-1);
 	}
 	*workers=new_w;
-	new.awaiting=0;
 	new.t_micro=new.n_rqs=0;
+	new.blocks=0; // never a valid pid of a real process
 	gettimeofday(&new.current, NULL);
 	new_w[nw]=new;
 	return(nw);
@@ -734,6 +725,7 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 		if((*workers)[w].pipe[1]) close((*workers)[w].pipe[1]);
 	}
 	pid_t was=(*workers)[w].pid;
+	pid_t blocks=(*workers)[w].blocks;
 	bool autoreplace=(*workers)[w].autoreplace;
 	const char *prog=(*workers)[w].prog, *name=(*workers)[w].name;
 	while(w<*nworkers)
@@ -742,16 +734,19 @@ void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 		w++;
 	}
 	(*nworkers)--;
-	for(w=0;w<*nworkers;w++)
+	if(blocks)
 	{
-		if((*workers)[w].awaiting==was)
+		for(w=0;w<*nworkers;w++)
 		{
-			hmsg dead=new_hmsg("err", NULL);
-			add_htag(dead, "what", "worker-died");
-			add_htag(dead, "worker-name", name);
-			if(debug) fprintf(stderr, "horde: reporting death to %s[%d]\n", (*workers)[w].name, (*workers)[w].pid);
-			hsend((*workers)[w].pipe[1], dead);
-			if(dead) free(dead);
+			if((*workers)[w].pid==blocks)
+			{
+				hmsg dead=new_hmsg("err", NULL);
+				add_htag(dead, "what", "worker-died");
+				add_htag(dead, "worker-name", name);
+				if(debug) fprintf(stderr, "horde: reporting death to %s[%d]\n", (*workers)[w].name, (*workers)[w].pid);
+				hsend((*workers)[w].pipe[1], dead);
+				if(dead) free(dead);
+			}
 		}
 	}
 	worker *new_w=realloc(*workers, *nworkers*sizeof(**workers));
@@ -796,7 +791,7 @@ int worker_set(unsigned int nworkers, worker *workers, int *fdmax, fd_set *fds)
 
 pid_t do_fork(const char *prog, const char *name, unsigned int *nworkers, worker **workers, int rfd, unsigned int *w)
 {
-	worker new=(worker){.prog=prog, .name=name, .special=NONE, .autoreplace=false, .awaiting=0};
+	worker new=(worker){.prog=prog, .name=name, .special=NONE, .autoreplace=false};
 	int s[2][2];
 	if(pipe(s[0])==-1)
 	{
