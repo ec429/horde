@@ -65,6 +65,9 @@ int main(int argc, char **argv)
 					free_hmsg(r);
 					free(newpath);
 				}
+				hmsg ready=new_hmsg("ready", NULL);
+				hsend(1, ready);
+				free_hmsg(ready);
 			}
 			else if(strcmp(h->funct, "shutdown")==0)
 			{

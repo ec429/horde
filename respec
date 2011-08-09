@@ -3,3 +3,7 @@ All workers of which only one instance may exist must always be ready to accept 
 A module uses the 'only' flag to indicate in which of the above categories it resides.  At present the dispatcher assumes these categories are mutually exclusive and exhaustive.
 
 If you need to implement functionality involving both a gatekeeper to a shared resource and the use of subrequests (eg. to gather state), you should split it into two modules, so that the gatekeeper merely becomes one of the subrequests of the application logic / driver module.
+
+TODO: cull excessive idle workers.
+TODO: make a generic version of the read loops, perhaps 'hmsg hmsg_expect(const char *funct);'
+TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)

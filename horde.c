@@ -185,47 +185,6 @@ int main(int argc, char **argv)
 	}
 	nhandlers=0;
 	handlers=NULL;
-	{
-		handler path=(handler){.name="path", .prog="./path", .n_init=0, .only=true};
-		if(add_handler(path)<0)
-		{
-			fprintf(stderr, "horde: add_handler(\"path\") failed\n");
-			return(EXIT_FAILURE);
-		}
-		handler proc=(handler){.name="proc", .prog="./proc", .n_init=(pipeline?2:1), .only=false};
-		proc.init=malloc(proc.n_init*sizeof(hmsg));
-		if(!proc.init)
-		{
-			fprintf(stderr, "horde: allocation failure (proc.init): malloc: %s\n", strerror(errno));
-			return(EXIT_FAILURE);
-		}
-		proc.init[0]=new_hmsg("root", root);
-		if(!proc.init[0])
-		{
-			fprintf(stderr, "horde: allocation failure (proc.init[0]): new_hmsg: %s\n", strerror(errno));
-			return(EXIT_FAILURE);
-		}
-		if(pipeline)
-		{
-			proc.init[1]=new_hmsg("pipeline", NULL);
-			if(!proc.init[1])
-			{
-				fprintf(stderr, "horde: allocation failure (proc.init[1]): new_hmsg: %s\n", strerror(errno));
-				return(EXIT_FAILURE);
-			}
-		}
-		if(add_handler(proc)<0)
-		{
-			fprintf(stderr, "horde: add_handler(\"proc\") failed\n");
-			return(EXIT_FAILURE);
-		}
-		handler ext=(handler){.name="ext", .prog="./ext", .n_init=0, .only=true};
-		if(add_handler(ext)<0)
-		{
-			fprintf(stderr, "horde: add_handler(\"ext\") failed\n");
-			return(EXIT_FAILURE);
-		}
-	}
 	FILE *rc=fopen(".horde", "r");
 	if(rc)
 	{
@@ -463,7 +422,6 @@ int main(int argc, char **argv)
 							if(*buf)
 							{
 								//fprintf(stderr, "horde: < '%s'\n", buf);
-								// TODO: handle the case when eg. a proc instance makes a tail-recursive proc call
 								hmsg h=hmsg_from_str(buf);
 								if(h)
 								{
@@ -522,73 +480,6 @@ int main(int argc, char **argv)
 										{
 											if(debug) fprintf(stderr, "horde: %s[%u] ready\n", workers[w].name, workers[w].pid);
 											workers[w].accepting=true;
-										}
-										else if(strcmp(h->funct, "path")==0)
-										{
-											signed int wpath=find_worker(&nworkers, &workers, "path", true, &fdmax, &master);
-											if(wpath<0)
-											{
-												fprintf(stderr, "horde: couldn't find or start \"path\" worker\n");
-												hmsg eh=new_hmsg("err", buf);
-												add_htag(eh, "what", "worker-init");
-												hsend(workers[w].pipe[1], eh);
-												if(eh) free_hmsg(eh);
-											}
-											else
-											{
-												if(debug) fprintf(stderr, "horde: passing message on to path[%u]\n", workers[wpath].pid);
-												char *from=malloc(16+strlen(workers[w].name));
-												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
-												add_htag(h, "from", from);
-												hsend(workers[wpath].pipe[1], h);
-												gettimeofday(&workers[wpath].current, NULL);
-												workers[wpath].blocks=workers[w].pid;
-											}
-										}
-										else if(strcmp(h->funct, "proc")==0)
-										{
-											signed int wproc=find_worker(&nworkers, &workers, "proc", true, &fdmax, &master);
-											if(wproc<0)
-											{
-												fprintf(stderr, "horde: couldn't find or start \"proc\" worker\n");
-												hmsg eh=new_hmsg("err", buf);
-												add_htag(eh, "what", "worker-init");
-												hsend(workers[w].pipe[1], eh);
-												if(eh) free_hmsg(eh);
-											}
-											else
-											{
-												if(debug) fprintf(stderr, "horde: passing message on to proc[%u]\n", workers[wproc].pid);
-												char *from=malloc(16+strlen(workers[w].name));
-												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
-												add_htag(h, "from", from);
-												hsend(workers[wproc].pipe[1], h);
-												workers[wproc].accepting=false;
-												gettimeofday(&workers[wproc].current, NULL);
-												workers[wproc].blocks=workers[w].pid;
-											}
-										}
-										else if(strcmp(h->funct, "ext")==0)
-										{
-											signed int wext=find_worker(&nworkers, &workers, "ext", true, &fdmax, &master);
-											if(wext<0)
-											{
-												fprintf(stderr, "horde: couldn't find or start \"ext\" worker\n");
-												hmsg eh=new_hmsg("err", buf);
-												add_htag(eh, "what", "worker-init");
-												hsend(workers[w].pipe[1], eh);
-												if(eh) free_hmsg(eh);
-											}
-											else
-											{
-												if(debug) fprintf(stderr, "horde: passing message on to ext[%u]\n", workers[wext].pid);
-												char *from=malloc(16+strlen(workers[w].name));
-												sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
-												add_htag(h, "from", from);
-												hsend(workers[wext].pipe[1], h);
-												gettimeofday(&workers[wext].current, NULL);
-												workers[wext].blocks=workers[w].pid;
-											}
 										}
 										else if(strcmp(h->funct, "accepted")==0)
 										{

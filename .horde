@@ -1,4 +1,20 @@
 (add \
+	(name proc) \
+	(prog ./proc) \
+	(stdinit) \
+	)
+
+(add \
+	(name ext) \
+	(prog ./ext) \
+	)
+
+(add \
+	(name path) \
+	(prog ./path) \
+	)
+
+(add \
 	(name pico) \
 	(prog ./pico) \
 	(stdinit) \

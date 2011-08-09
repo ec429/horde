@@ -402,7 +402,7 @@ int handle(const char *inp, const char *name, char **root)
 								hsend(1, ex);
 								free_hmsg(ex);
 								bool exed=false;
-								while(!exed) // TODO: make a generic version of these read loops (hmsg hmsg_expect(const char *funct); perhaps)
+								while(!exed)
 								{
 									char *inp2=getl(STDIN_FILENO);
 									if(inp2)
