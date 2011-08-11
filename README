@@ -58,6 +58,7 @@ TODO: make proc pay attention to the (onfail) attribute
 TODO: allow '.horde'-style handler registration at runtime by providing a similar entry on the dispatcher's standard input
 TODO: dike out 'path'; net should use normalise_path() (and so should everyone else)
 TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream.
+TODO: handle proc failing an open(), especially if EPERM (then 403 or 404?).  Maybe also access(R_OK) it first.
 
 Sample Transcript:
 ------------------
