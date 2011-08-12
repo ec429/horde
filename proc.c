@@ -366,14 +366,23 @@ int handle(const char *inp, const char *name, char **root)
 						if(!fp)
 						{
 							hmsg r;
+							char st[9];
 							switch(errno)
 							{
 								case ENOENT:
 									r=new_hmsg("proc", "/404.htm"); // tail-recursive proc call
-									char st[9];
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
+									if(from) add_htag(r, "from", from);
+									hsend(1, r);
+									free_hmsg(r);
+								break;
+								case EPERM:
+									r=new_hmsg("proc", "/403.htm"); // tail-recursive proc call
+									hputshort(st, 403);
+									add_htag(r, "status", st);
+									add_htag(r, "statusmsg", "Forbidden");
 									if(from) add_htag(r, "from", from);
 									hsend(1, r);
 									free_hmsg(r);
