@@ -57,8 +57,8 @@ TODO: instead of putting all the horde and proc knowledge into single '.horde' a
 TODO: make proc pay attention to the (onfail) attribute
 TODO: allow '.horde'-style handler registration at runtime by providing a similar entry on the dispatcher's standard input
 TODO: dike out 'path'; net should use normalise_path() (and so should everyone else)
-TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream.
-TODO: handle proc failing an open(), especially if EPERM (then 403 or 404?).  Maybe also access(R_OK) it first.
+TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream
+TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
 
 Sample Transcript:
 ------------------
