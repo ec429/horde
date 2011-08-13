@@ -59,7 +59,6 @@ TODO: allow '.horde'-style handler registration at runtime by providing a simila
 TODO: dike out 'path'; net should use normalise_path() (and so should everyone else)
 TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream
 TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
-TODO: cope with rampaging hordes of zombie nets!
 
 Sample Transcript:
 ------------------

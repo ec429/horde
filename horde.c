@@ -279,7 +279,11 @@ int main(int argc, char **argv)
 	}
 	else
 		fprintf(stderr, "horde: failed to open rc file '.horde': fopen: %s\n", strerror(errno));
-	signal(SIGPIPE, SIG_IGN);
+	fprintf(stderr, "horde: setting signal handlers\n");
+	if(signal(SIGPIPE, SIG_IGN)==SIG_ERR)
+		perror("horde: failed to set SIGPIPE handler: signal");
+	if(signal(SIGCHLD, SIG_IGN)==SIG_ERR)
+		perror("horde: failed to set SIGCHLD handler: signal");
 	if(debug) printf("horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
 	char *input; unsigned int inpl, inpi;
@@ -382,17 +386,6 @@ int main(int argc, char **argv)
 									}
 									unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
 									fprintf(stderr, "horde:\t net         [     ] :: %u rq, mean %03ums\n", net_rqs, m);
-								}
-								else if(strcmp(ih->funct, "reap")==0)
-								{
-									pid_t p;
-									unsigned int c=0;
-									while((p=waitpid((pid_t)-1, NULL, WNOHANG))>0)
-									{
-										fprintf(stderr, "horde: reaped %u\n", p);
-										++c;
-									}
-									fprintf(stderr, "horde: %u processes reaped\n", c);
 								}
 								else
 								{
@@ -616,7 +609,6 @@ int addworker(unsigned int *nworkers, worker **workers, worker new)
 void rmworker(unsigned int *nworkers, worker **workers, unsigned int w)
 {
 	if(w>=*nworkers) return;
-	if((*workers)[w].pid) waitpid((*workers)[w].pid, NULL, WNOHANG);
 	if((*workers)[w].pipe)
 	{
 		if((*workers)[w].pipe[0]) close((*workers)[w].pipe[0]);
