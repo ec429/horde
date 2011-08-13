@@ -383,6 +383,17 @@ int main(int argc, char **argv)
 									unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
 									fprintf(stderr, "horde:\t net         [     ] :: %u rq, mean %03ums\n", net_rqs, m);
 								}
+								else if(strcmp(ih->funct, "reap")==0)
+								{
+									pid_t p;
+									unsigned int c=0;
+									while((p=waitpid((pid_t)-1, NULL, WNOHANG))>0)
+									{
+										fprintf(stderr, "horde: reaped %u\n", p);
+										++c;
+									}
+									fprintf(stderr, "horde: %u processes reaped\n", c);
+								}
 								else
 								{
 									fprintf(stderr, "horde: unrecognised cmd '%s'\n", ih->funct);
