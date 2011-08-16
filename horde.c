@@ -448,6 +448,7 @@ int main(int argc, char **argv)
 												if(p!=workers[who].pid) continue;
 												if(strncmp(h->p_value[i], workers[who].name, l-h->p_value[i])) continue;
 												if(debug) fprintf(stderr, "horde: passing response on to %s[%u]\n", workers[who].name, workers[who].pid);
+												if(p==workers[w].blocks) workers[w].blocks=0;
 												hsend(workers[who].pipe[1], h);
 												break;
 											}
