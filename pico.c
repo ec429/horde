@@ -6,6 +6,7 @@
 	Licensed under GNU GPLv3+; see top of horde.c for details
 	
 	pico: process <?pico> tags like httpico
+	Note that pico assumes supplied data to be textual (ie. no \0s)
 */
 
 #include <stdio.h>
@@ -90,14 +91,11 @@ int handle(const char *inp, const char *name, char **root)
 	if(h)
 	{
 		const char *from=NULL;
-		unsigned long length=0;
 		unsigned int i;
 		for(i=0;i<h->nparms;i++)
 		{
 			if(strcmp(h->p_tag[i], "from")==0)
 				from=h->p_value[i];
-			else if(strcmp(h->p_tag[i], "length")==0)
-				length=hgetlong(h->p_value[i]);
 		}
 		if(strcmp(h->funct, "pico")==0)
 		{
@@ -116,15 +114,9 @@ int handle(const char *inp, const char *name, char **root)
 			else
 			{
 				char *resp=picofy(h, name, (pdata){.root=*root});
-				ssize_t length=strlen(resp);
-				char *resph=hex_encode(resp, strlen(resp));
+				hmsg r=new_hmsg("pico", resp);
 				free(resp);
-				hmsg r=new_hmsg("pico", resph);
-				free(resph);
 				if(from) add_htag(r, "to", from);
-				char ln[17];
-				hputlong(ln, length);
-				add_htag(r, "length", ln);
 				add_htag(r, "server", "pico "PICO_VER);
 				hsend(1, r);
 				free_hmsg(r);
@@ -240,15 +232,12 @@ int handle(const char *inp, const char *name, char **root)
 char *picofy(const hmsg h, const char *name, pdata p)
 {
 	const char *from=NULL;
-	unsigned long length=0;
 	const char *ua=NULL;
 	for(unsigned int i=0;i<h->nparms;i++)
 	{
 		//if(debug) fprintf(stderr, "horde: %s[%d]: \t (%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
 		if(strcmp(h->p_tag[i], "from")==0)
 			from=h->p_value[i];
-		else if(strcmp(h->p_tag[i], "length")==0)
-			length=hgetlong(h->p_value[i]);
 		else if(strcmp(h->p_tag[i], "rqheader")==0)
 		{
 			off_t colon=strcspn(h->p_value[i], ":");
@@ -263,8 +252,7 @@ char *picofy(const hmsg h, const char *name, pdata p)
 	char *rv;
 	unsigned int l,i;
 	init_char(&rv, &l, &i);
-	char *data=hex_decode(h->data, length<<1);
-	char *d=data;
+	char *d=strdup(h->data);
 	if(!d) return(NULL);
 	while(*d)
 	{
@@ -306,21 +294,12 @@ char *picofy(const hmsg h, const char *name, pdata p)
 						if(pf)
 						{
 							char *pfd;
-							ssize_t length=hslurp(pf, &pfd);
+							ssize_t length=dslurp(pf, &pfd);
 							fclose(pf);
-							hmsg ph=new_hmsg("pico", pfd);
+							hmsg ph=new_hmsg_d("pico", pfd, length);
 							free(pfd);
 							for(unsigned int i=0;i<h->nparms;i++)
-							{
-								if(strcmp(h->p_tag[i], "length")==0)
-								{
-									char ln[17];
-									hputlong(ln, length);
-									add_htag(ph, "length", ln);
-								}
-								else
-									add_htag(ph, h->p_tag[i], h->p_value[i]);
-							}
+								add_htag(ph, h->p_tag[i], h->p_value[i]);
 							char *pd=picofy(ph, name, p);
 							if(pd)
 								append_str(&rv, &l, &i, pd);
@@ -377,6 +356,5 @@ char *picofy(const hmsg h, const char *name, pdata p)
 		else
 			append_char(&rv, &l, &i, *d++);
 	}
-	free(data);
 	return(rv);
 }

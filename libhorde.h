@@ -29,6 +29,7 @@ typedef struct
 	char **p_tag;
 	char **p_value;
 	char *data;
+	size_t dlen;
 }
 *hmsg;
 
@@ -71,6 +72,11 @@ lvars;
 
 #define NOVARS	(lvars){.nvars=0, .name=NULL, .var=NULL}
 
+// lengths to use for char buffers for hput{long,short}.  TODO: some magic with strlen(#INT_MAX) things? (ANSI stringizing!)
+#define TL_LONG		24
+#define TL_SIZET	TL_LONG
+#define TL_SHORT	16
+
 void hputlong(char *buf, unsigned long val);
 unsigned long hgetlong(const char *buf);
 void hputshort(char *buf, unsigned short val);
@@ -79,6 +85,7 @@ unsigned short hgetshort(const char *buf);
 ssize_t sendall(int sockfd, const void *buf, size_t length, int flags);
 
 hmsg new_hmsg(const char *funct, const char *data);
+hmsg new_hmsg_d(const char *funct, const char *data, size_t dlen);
 int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str);

@@ -47,7 +47,7 @@ char *hex_decode(const char *src, size_t srclen)
 
 void hputlong(char *buf, unsigned long val)
 {
-	snprintf(buf, 16, "%lu", val);
+	snprintf(buf, TL_LONG-1, "%lu", val);
 }
 
 unsigned long hgetlong(const char *buf)
@@ -59,7 +59,7 @@ unsigned long hgetlong(const char *buf)
 
 void hputshort(char *buf, unsigned short val)
 {
-	snprintf(buf, 8, "%hu", val);
+	snprintf(buf, TL_SHORT-1, "%hu", val);
 }
 
 unsigned short hgetshort(const char *buf)
@@ -90,7 +90,40 @@ hmsg new_hmsg(const char *funct, const char *data)
 	if(rv)
 	{
 		if(funct) rv->funct=strdup(funct); else rv->funct=NULL;
-		if(data) rv->data=strdup(data); else rv->data=NULL;
+		if(data)
+		{
+			rv->data=strdup(data);
+			rv->dlen=strlen(data);
+		}
+		else
+		{
+			rv->data=NULL;
+			rv->dlen=0;
+		}
+		rv->nparms=0;
+		rv->p_tag=rv->p_value=NULL;
+	}
+	return(rv);
+}
+
+hmsg new_hmsg_d(const char *funct, const char *data, size_t dlen)
+{
+	hmsg rv=malloc(sizeof(*rv));
+	if(rv)
+	{
+		if(funct) rv->funct=strdup(funct); else rv->funct=NULL;
+		if(data)
+		{
+			rv->dlen=dlen;
+			rv->data=malloc(dlen+1);
+			memcpy(rv->data, data, dlen);
+			rv->data[dlen]=0;
+		}
+		else
+		{
+			rv->dlen=0;
+			rv->data=NULL;
+		}
 		rv->nparms=0;
 		rv->p_tag=rv->p_value=NULL;
 	}
@@ -156,9 +189,9 @@ char *str_from_hmsg(const hmsg h)
 	}
 	if(h->data)
 	{
-		if((h->data[0]=='#') || (strpbrk(h->data, "( )")))
+		if((h->data[0]=='#') || (strpbrk(h->data, "( )")) || (h->dlen!=strlen(h->data)))
 		{
-			char *val=hex_encode(h->data, strlen(h->data));
+			char *val=hex_encode(h->data, h->dlen);
 			if(val)
 			{
 				append_char(&rv, &l, &i, ' ');
@@ -295,6 +328,7 @@ hmsg hmsg_from_str(const char *str)
 				if(*p==')')
 				{
 					rv->data=hex_decode(curr, p-curr);
+					rv->dlen=(p-curr)>>1;
 					return(rv);
 				}
 			break;
@@ -353,6 +387,7 @@ hmsg hmsg_from_str(const char *str)
 				if(*p==')')
 				{
 					rv->data=strndup(curr, p-curr);
+					rv->dlen=p-curr;
 					return(rv);
 				}
 			break;
@@ -767,7 +802,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		switch(v.type)
 		{
 			case L_NUM:;
-				char str[16];
+				char str[TL_LONG];
 				hputlong(str, v.data.num);
 				return(l_str(strdup(str)));
 			case L_STR:
@@ -789,7 +824,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		switch(v.type)
 		{
 			case L_NUM:;
-				char str[16];
+				char str[TL_LONG];
 				hputlong(str, v.data.num);
 				return(l_blo(strdup(str), strlen(str)));
 			case L_STR:

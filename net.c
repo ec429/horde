@@ -507,7 +507,6 @@ int main(int argc, char **argv)
 				char *fserver; unsigned int fsl, fsi;
 				init_char(&fserver, &fsl, &fsi);
 				append_str(&fserver, &fsl, &fsi, server);
-				unsigned long length=0;
 				unsigned int i;
 				for(i=0;i<h->nparms;i++)
 				{
@@ -518,20 +517,14 @@ int main(int argc, char **argv)
 						if((ns<600)&&(ns>99)) status=ns;
 					}
 					else if(strcmp(h->p_tag[i], "statusmsg")==0)
-					{
 						statusmsg=h->p_value[i];
-					}
-					else if(strcmp(h->p_tag[i], "length")==0)
-					{
-						length=hgetlong(h->p_value[i]);
-					}
 					else if(strcmp(h->p_tag[i], "read")==0)
 					{
 						FILE *fp=fopen(h->p_value[i], "r");
 						if(fp)
 						{
 							if(h->data) free(h->data);
-							hslurp(fp, &h->data);
+							h->dlen=dslurp(fp, &h->data);
 						}
 					}
 					else if(strcmp(h->p_tag[i], "server")==0)
@@ -548,7 +541,7 @@ int main(int argc, char **argv)
 				time_t timer = time(NULL);
 				struct tm *tm = gmtime(&timer);
 				size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
-				char *head=malloc(9+8+strlen(statusmsg)+1+6+datelen+1+8+strlen(fserver)+1+16+16+1+1);
+				char *head=malloc(9+TL_SHORT+strlen(statusmsg)+1+6+datelen+1+8+strlen(fserver)+1+16+TL_SIZET+1+1);
 				if(!head)
 				{
 					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *head): malloc: %s\n", name, getpid(), strerror(errno));
@@ -557,7 +550,7 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %lu\n", status, statusmsg, date, fserver, h->data?length:0);
+				sprintf(head, "HTTP/1.1 %hu %s\nDate: %s\nServer: %s\nContent-Length: %zu\n", status, statusmsg, date, fserver, h->data?h->dlen:0);
 				free(fserver);
 				ssize_t n=sendall(newhandle, head, strlen(head), 0);
 				if(n)
@@ -598,8 +591,7 @@ int main(int argc, char **argv)
 				}
 				if(h->data) // otherwise assume status does not require one
 				{
-					char *data=hex_decode(h->data, strlen(h->data));
-					n=sendall(newhandle, data, length, 0);
+					n=sendall(newhandle, h->data, h->dlen, 0);
 					if(n)
 					{
 						if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", name, getpid(), n, strerror(errno));
@@ -607,17 +599,16 @@ int main(int argc, char **argv)
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					free(data);
 				}
-				free_hmsg(h);
 				if((status!=302)&&strcmp(ip, is6?"::1":"127.0.0.1")) // log everything except 302 Found and localhost
 				{
-					char *ll=logline(status, length, rpath, ip, "GET", ref, ua);
+					char *ll=logline(status, h->dlen, rpath, ip, "GET", ref, ua);
 					hmsg l=new_hmsg("log", ll);
 					free(ll);
 					hsend(1, l);
 					free_hmsg(l);
 				}
+				free_hmsg(h);
 				free(rpath);
 			break;
 			default:
@@ -724,8 +715,8 @@ char *logline(unsigned int status, unsigned long length, const char *path, const
 	time_t timer = time(NULL);
 	struct tm *tm = gmtime(&timer);
 	size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
-	char st[17], sz[17];
-	sprintf(st, "%d", status);
+	char st[TL_LONG], sz[TL_LONG];
+	sprintf(st, "%u", status);
 	sprintf(sz, "%lu", length);
 	char *rv=malloc(strlen(ip)+1+datelen+1+strlen(st)+1+strlen(ac)+2+strlen(sz)+2+(path?strlen(path):1)+1+(ref?strlen(ref):2)+1+(ua?strlen(ua):2)+1);
 	sprintf(rv, "%s\t%s\t%s %s [%s] %s\t%s\t%s", ip, date, st, ac, sz, (path?path:"?"), (ref?ref:"--"), (ua?ua:".."));

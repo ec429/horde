@@ -232,7 +232,7 @@ int handle(const char *inp, const char *name, char **root)
 								if(status==200)
 								{
 									r=new_hmsg("proc", "/404.htm"); // tail-recursive proc call
-									char st[9];
+									char st[TL_SHORT];
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
@@ -244,7 +244,7 @@ int handle(const char *inp, const char *name, char **root)
 								{
 									if(debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>403 -- Forbidden</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
-									char st[9];
+									char st[TL_SHORT];
 									hputshort(st, 403);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
@@ -256,7 +256,7 @@ int handle(const char *inp, const char *name, char **root)
 								{
 									if(debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>");
-									char st[9];
+									char st[TL_SHORT];
 									hputshort(st, 404);
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
@@ -280,7 +280,7 @@ int handle(const char *inp, const char *name, char **root)
 									{
 										sprintf(sed, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>%1$hu -- %2$s</title>\n</head><body>\n<h1>HTTP Error %1$hu: %2$s</h1>\n<p>The above error occurred while trying to process the request.  Furthermore, no default or custom error page matching the error in question was found.</p>\n</body></html>", status, statusmsg);
 										r=new_hmsg("proc", sed);
-										char st[9];
+										char st[TL_SHORT];
 										hputshort(st, status);
 										add_htag(r, "status", st);
 										add_htag(r, "statusmsg", statusmsg);
@@ -291,7 +291,7 @@ int handle(const char *inp, const char *name, char **root)
 							default:
 								r=new_hmsg("err", NULL);
 								add_htag(r, "what", "open-failure");
-								char en[16];
+								char en[TL_LONG];
 								hputlong(en, errno);
 								add_htag(r, "errno", en);
 								if(from) add_htag(r, "to", from);
@@ -323,7 +323,7 @@ int handle(const char *inp, const char *name, char **root)
 							if(stat(ipath, &stbuf)) // redirect to index; if not present, forbid directory listings
 							{
 								hmsg r=new_hmsg("proc", "/403.htm"); // tail-recursive proc call
-								char st[9];
+								char st[TL_SHORT];
 								hputshort(st, 403);
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", "Forbidden");
@@ -334,7 +334,7 @@ int handle(const char *inp, const char *name, char **root)
 							else
 							{
 								hmsg r=new_hmsg("proc", NULL);
-								char st[9];
+								char st[TL_SHORT];
 								hputshort(st, 302);
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", "Found");
@@ -366,7 +366,7 @@ int handle(const char *inp, const char *name, char **root)
 						if(!fp)
 						{
 							hmsg r;
-							char st[9];
+							char st[TL_SHORT];
 							switch(errno)
 							{
 								case ENOENT:
@@ -390,7 +390,7 @@ int handle(const char *inp, const char *name, char **root)
 								default:
 									r=new_hmsg("err", NULL);
 									add_htag(r, "what", "open-failure");
-									char en[16];
+									char en[TL_LONG];
 									hputlong(en, errno);
 									add_htag(r, "errno", en);
 									if(from) add_htag(r, "to", from);
@@ -482,7 +482,7 @@ int handle(const char *inp, const char *name, char **root)
 							}
 							bool processed=false;
 							char *buf;
-							ssize_t length=hslurp(fp, &buf);
+							ssize_t length=dslurp(fp, &buf);
 							fclose(fp);
 							if((!buf)||(length<0))
 							{
@@ -497,10 +497,8 @@ int handle(const char *inp, const char *name, char **root)
 								lvars lv=NOVARS;
 								if(ext) l_addvar(&lv, "ext", l_str(ext+1));
 								l_addvar(&lv, "ctype", l_str(content_type));
-								char *raw=hex_decode(buf, strlen(buf));
-								l_addvar(&lv, "body", l_blo(raw, length));
-								free(raw);
-								hmsg r=new_hmsg("proc", NULL);
+								l_addvar(&lv, "body", l_blo(buf, length));
+								hmsg r=new_hmsg_d("proc", buf, length);
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
@@ -508,10 +506,7 @@ int handle(const char *inp, const char *name, char **root)
 									//if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
 									if(l_asbool(apply))
 									{
-										hmsg fh=new_hmsg(procs[proc].functor->funct, buf);
-										char ln[17];
-										hputlong(ln, length);
-										add_htag(fh, "length", ln);
+										hmsg fh=new_hmsg_d(procs[proc].functor->funct, r->data, r->dlen);
 										for(unsigned int i=0;i<h->nparms;i++)
 											add_htag(fh, h->p_tag[i], h->p_value[i]);
 										hsend(1, fh);
@@ -532,20 +527,19 @@ int handle(const char *inp, const char *name, char **root)
 														{
 															if(h2->data)
 															{
-																free(buf);
-																buf=strdup(h2->data);
+																free_hmsg(r);
+																r=new_hmsg_d("proc", h2->data, h2->dlen);
 																for(unsigned int i=0;i<h2->nparms;i++)
 																{
-																	if(strcmp(h2->p_tag[i], "length")==0)
-																		length=hgetlong(h2->p_value[i]);
-																	else if(strcmp(h2->p_tag[i], "to")==0);
+																	if(strcmp(h2->p_tag[i], "to")==0);
 																	else if(strcmp(h2->p_tag[i], "from")==0);
 																	else
 																		add_htag(r, h2->p_tag[i], h2->p_value[i]);
 																}
-																char *raw=hex_decode(buf, strlen(buf));
-																l_addvar(&lv, "body", l_blo(raw, length));
-																free(raw);
+																buf=malloc(h2->dlen+1);
+																memcpy(buf, h2->data, h2->dlen);
+																buf[h2->dlen]=0;
+																l_addvar(&lv, "body", l_blo(buf, h2->dlen));
 															}
 															brk=true;
 														}
@@ -596,8 +590,7 @@ int handle(const char *inp, const char *name, char **root)
 									buf=NULL;
 									useread=true;
 								}
-								r->data=buf;
-								char st[9];
+								char st[TL_SHORT];
 								hputshort(st, status);
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", statusmsg);
@@ -612,9 +605,6 @@ int handle(const char *inp, const char *name, char **root)
 									}
 									free(content_type);
 								}
-								char ln[17];
-								hputlong(ln, length);
-								add_htag(r, "length", ln);
 								if(from) add_htag(r, "to", from);
 								if(useread)
 									add_htag(r, "read", path);
