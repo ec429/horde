@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 int handle(const char *inp, const char *name, char **root)
 {
 	int errupt=0;
-	hmsg h=hmsg_from_str(inp);
+	hmsg h=hmsg_from_str(inp, true);
 	if(h)
 	{
 		const char *from=NULL;

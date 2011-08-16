@@ -50,6 +50,7 @@ Pitfalls:
 ---------
 libhorde's hmsg allows embedded NULs in data, thanks to hmsg->dlen by way of new_hmsg_d().  BUT... it doesn't allow them in htags, which should be purely textual.
 On a related note, some preprocessors (namely, those operating only on textual data, and which will typically only be /called/ for textual data) can pretend all-the-world's-a-Cstring, and ignore the possibility of NULs - after all, who passes an image file to a preprocessor?  You may, however, feel that robustness is worth the slight extra complication involved in using hmsg->dlen.
+Another way to pass binary data, rather than using new_hmsg_d(), is to use the (read) tag, and either a file on disk or a FIFO (named pipe); this will be abstracted away on the receiving side by libhorde.  Notice however that this facility means that hmsg_from_str() can block (because it's reading from a file which might be a pipe).
 
 Plans:
 ------

@@ -72,7 +72,7 @@ int main(void)
 int handle(const char *inp)
 {
 	int errupt=0;
-	hmsg h=hmsg_from_str(inp);
+	hmsg h=hmsg_from_str(inp, true);
 	if(h)
 	{
 		if(strcmp(h->funct, "log")==0)

@@ -214,7 +214,7 @@ int main(int argc, char **argv)
 				free(cont);
 				line=newl;
 			}
-			hmsg h=hmsg_from_str(line);
+			hmsg h=hmsg_from_str(line, true);
 			if(h)
 			{
 				if(strcmp(h->funct, "add")==0)
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
 								else
 									break;
 							}
-							hmsg ih=hmsg_from_str(input);
+							hmsg ih=hmsg_from_str(input, true);
 							if(ih)
 							{
 								if(strcmp(ih->funct, "shutdown")==0)
@@ -426,7 +426,7 @@ int main(int argc, char **argv)
 							if(*buf)
 							{
 								//fprintf(stderr, "horde: < '%s'\n", buf);
-								hmsg h=hmsg_from_str(buf);
+								hmsg h=hmsg_from_str(buf, false);
 								if(h)
 								{
 									bool to=false;

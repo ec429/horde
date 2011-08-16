@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 		char *inp=getl(STDIN_FILENO);
 		if(!inp) break;
 		if(!*inp) {free(inp);continue;}
-		hmsg h=hmsg_from_str(inp);
+		hmsg h=hmsg_from_str(inp, true);
 		if(h)
 		{
 			const char *from=NULL;

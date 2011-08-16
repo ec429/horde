@@ -88,7 +88,8 @@ hmsg new_hmsg(const char *funct, const char *data);
 hmsg new_hmsg_d(const char *funct, const char *data, size_t dlen);
 int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
-hmsg hmsg_from_str(const char *str);
+hmsg hmsg_from_str(const char *str, bool read); // should we hmsg_read() where appropriate?  (Typically, YES except in the dispatcher)
+hmsg hmsg_read(hmsg h); // apply a (read) tag if one is present (and data is absent)
 void free_hmsg(hmsg h);
 
 lform new_lform(const char *funct);

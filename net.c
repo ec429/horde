@@ -296,7 +296,7 @@ int main(int argc, char **argv)
 						return(EXIT_FAILURE);
 					}
 					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
-					h=hmsg_from_str(frompath);
+					h=hmsg_from_str(frompath, true);
 					if(h)
 					{
 						free(frompath);
@@ -419,7 +419,7 @@ int main(int argc, char **argv)
 						return(EXIT_FAILURE);
 					}
 					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), fromproc);
-					h=hmsg_from_str(fromproc);
+					h=hmsg_from_str(fromproc, true);
 					if(h)
 					{
 						free(fromproc);
@@ -680,7 +680,7 @@ bool check_msgs(const char *name)
 		char *buf=getl(STDIN_FILENO);
 		if(*buf)
 		{
-			hmsg h=hmsg_from_str(buf);
+			hmsg h=hmsg_from_str(buf, true);
 			if(h)
 			{
 				if(strcmp(h->funct, "debug")==0)

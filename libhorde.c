@@ -210,7 +210,7 @@ char *str_from_hmsg(const hmsg h)
 	return(rv);
 }
 
-hmsg hmsg_from_str(const char *str)
+hmsg hmsg_from_str(const char *str, bool read)
 {
 	const char *p=str, *funct=NULL, *tag=NULL, *tage=NULL, *curr=NULL;
 	char *ff=NULL;
@@ -309,7 +309,7 @@ hmsg hmsg_from_str(const char *str)
 						break;
 					break;
 					case ')':
-						return(rv); // no data segment
+						return(read?hmsg_read(rv):rv); // no data segment
 					break;
 					case '#':
 						state=5;
@@ -414,11 +414,27 @@ hmsg hmsg_from_str(const char *str)
 	return(NULL);
 }
 
+hmsg hmsg_read(hmsg h)
+{
+	if(!h) return(NULL);
+	if(h->data) return(h);
+	for(unsigned int i=0;i<h->nparms;i++)
+	{
+		if(!h->p_tag[i]) continue;
+		if(strcmp(h->p_tag[i], "read")) continue;
+		FILE *fp=fopen(h->p_value[i], "r");
+		if(!fp) continue;
+		h->dlen=dslurp(fp, &h->data);
+		fclose(fp);
+		break;
+	}
+	return(h);
+}
+
 void free_hmsg(hmsg h)
 {
 	if(!h) return;
-	unsigned int i;
-	for(i=0;i<h->nparms;i++)
+	for(unsigned int i=0;i<h->nparms;i++)
 	{
 		if(h->p_tag&&h->p_tag[i]) free(h->p_tag[i]);
 		if(h->p_value&&h->p_value[i]) free(h->p_value[i]);

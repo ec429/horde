@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 int handle(const char *inp, const char *name, char **root)
 {
 	int errupt=0;
-	hmsg h=hmsg_from_str(inp);
+	hmsg h=hmsg_from_str(inp, true);
 	if(h)
 	{
 		const char *from=NULL;
@@ -423,7 +423,7 @@ int handle(const char *inp, const char *name, char **root)
 										}
 										else
 										{
-											hmsg h2=hmsg_from_str(inp2);
+											hmsg h2=hmsg_from_str(inp2, true);
 											if(h2)
 											{
 												if(strcmp(h2->funct, "ext")==0)
@@ -499,6 +499,7 @@ int handle(const char *inp, const char *name, char **root)
 								l_addvar(&lv, "ctype", l_str(content_type));
 								l_addvar(&lv, "body", l_blo(buf, length));
 								hmsg r=new_hmsg_d("proc", buf, length);
+								free(buf);
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
@@ -520,7 +521,7 @@ int handle(const char *inp, const char *name, char **root)
 											{
 												if(*resp)
 												{
-													hmsg h2=hmsg_from_str(resp);
+													hmsg h2=hmsg_from_str(resp, true);
 													if(h2)
 													{
 														if(strcmp(h2->funct, procs[proc].functor->funct)==0)
@@ -583,13 +584,6 @@ int handle(const char *inp, const char *name, char **root)
 									free_lvalue(apply);
 								}
 								free_lvars(&lv);
-								bool useread=false;
-								if((!processed)&&(length>MAXBLOBLEN))
-								{
-									free(buf);
-									buf=NULL;
-									useread=true;
-								}
 								char st[TL_SHORT];
 								hputshort(st, status);
 								add_htag(r, "status", st);
@@ -606,8 +600,13 @@ int handle(const char *inp, const char *name, char **root)
 									free(content_type);
 								}
 								if(from) add_htag(r, "to", from);
-								if(useread)
+								if(!processed)
+								{
+									free(r->data);
+									r->data=NULL;
+									r->dlen=0;
 									add_htag(r, "read", path);
+								}
 								hsend(1, r);
 								free_hmsg(r);
 							}
