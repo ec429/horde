@@ -28,7 +28,7 @@ typedef struct
 }
 processor;
 
-int handle(const char *inp, const char *name, char **root);
+void handle(const char *inp, hstate *hst);
 int add_processor(processor p);
 
 lvalue app(lform lf, lvars lv);
@@ -39,16 +39,18 @@ processor *procs;
 
 int main(int argc, char **argv)
 {
-	const char *name=argc?argv[0]:"proc";
-	char *root=strdup("root");
-	pipeline=false;
-	debug=false;
+	hstate hst;
+	hst.name=argc?argv[0]:"proc";
+	hst.root=strdup("root");
+	hst.shutdown=false;
+	hst.pipeline=false;
+	hst.debug=false;
 	nprocs=0;
 	procs=NULL;
 	FILE *rc=fopen(".proc", "r");
 	if(rc)
 	{
-		//fprintf(stderr, "horde: %s[%d]: reading rc file '.proc'\n", name, getpid());
+		//fprintf(stderr, "horde: %s[%d]: reading rc file '.proc'\n", hst.name, getpid());
 		char *line;
 		while((line=fgetl(rc)))
 		{
@@ -74,53 +76,42 @@ int main(int argc, char **argv)
 				free(cont);
 				line=newl;
 			}
-			int e=handle(line, name, &root);
+			handle(line, &hst);
 			free(line);
-			if(e) break;
 		}
 		fclose(rc);
-		if(debug) fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", name, getpid());
+		if(hst.debug) fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", hst.name, getpid());
 	}
 	/*else
-		fprintf(stderr, "horde: %s[%d]: failed to open rc file '.proc': fopen: %s\n", name, getpid(), strerror(errno));*/
-	int errupt=0;
-	while(!errupt)
+		fprintf(stderr, "horde: %s[%d]: failed to open rc file '.proc': fopen: %s\n", hst.name, getpid(), strerror(errno));*/
+	while(!hst.shutdown)
 	{
 		char *inp=getl(STDIN_FILENO);
 		if(!inp) break;
 		if(!*inp) {free(inp);continue;}
-		errupt=handle(inp, name, &root);
+		handle(inp, &hst);
 		free(inp);
 	}
 	hfin(EXIT_SUCCESS);
 	return(EXIT_SUCCESS);
 }
 
-int handle(const char *inp, const char *name, char **root)
+void handle(const char *inp, hstate *hst)
 {
-	int errupt=0;
 	hmsg h=hmsg_from_str(inp, true);
+	if(hmsg_state(h, hst)) return;
 	if(h)
 	{
-		const char *from=NULL;
+		const char *from=gettag(h, "from");
 		unsigned short status=200;
-		const char *statusmsg=NULL;
+		const char *statusmsg=gettag(h, "statusmsg");
 		unsigned int i;
 		for(i=0;i<h->nparms;i++)
 		{
-			if(strcmp(h->p_tag[i], "from")==0)
-			{
-				from=h->p_value[i];
-				break;
-			}
-			else if(strcmp(h->p_tag[i], "status")==0)
+			if(strcmp(h->p_tag[i], "status")==0)
 			{
 				unsigned short ns=hgetshort(h->p_value[i]);
 				if((ns<600)&&(ns>99)) status=ns;
-			}
-			else if(strcmp(h->p_tag[i], "statusmsg")==0)
-			{
-				statusmsg=h->p_value[i];
 			}
 		}
 		if(!statusmsg)
@@ -207,7 +198,7 @@ int handle(const char *inp, const char *name, char **root)
 			}
 			else
 			{
-				char *path=malloc(strlen(*root)+strlen(h->data)+1);
+				char *path=malloc(strlen(hst->root)+strlen(h->data)+1);
 				if(!path)
 				{
 					hmsg r=new_hmsg("err", NULL);
@@ -218,13 +209,13 @@ int handle(const char *inp, const char *name, char **root)
 				}
 				else
 				{
-					strcpy(path, *root);
+					strcpy(path, hst->root);
 					strcat(path, h->data);
 					bool isdir=false;
 					struct stat stbuf;
 					if(stat(path, &stbuf))
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: stat(%s) failed: %s\n", name, getpid(), path, strerror(errno));
+						if(hst->debug) fprintf(stderr, "horde: %s[%d]: stat(%s) failed: %s\n", hst->name, getpid(), path, strerror(errno));
 						hmsg r;
 						switch(errno)
 						{
@@ -242,7 +233,7 @@ int handle(const char *inp, const char *name, char **root)
 								}
 								else if(status==403)
 								{
-									if(debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", name, getpid());
+									if(hst->debug) fprintf(stderr, "horde: %s[%d]: using static 403\n", hst->name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>403 -- Forbidden</title>\n</head><body>\n<h1>HTTP Error 403: Forbidden</h1>\n<p>You don't have permission to view the requested resource.</p>\n</body></html>");
 									char st[TL_SHORT];
 									hputshort(st, 403);
@@ -254,7 +245,7 @@ int handle(const char *inp, const char *name, char **root)
 								}
 								else if(status==404)
 								{
-									if(debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", name, getpid());
+									if(hst->debug) fprintf(stderr, "horde: %s[%d]: using static 404\n", hst->name, getpid());
 									r=new_hmsg("proc", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html><head>\n<title>404 -- Not Found</title>\n</head><body>\n<h1>HTTP Error 404: Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n</body></html>");
 									char st[TL_SHORT];
 									hputshort(st, 404);
@@ -266,7 +257,7 @@ int handle(const char *inp, const char *name, char **root)
 								}
 								else
 								{
-									if(debug) fprintf(stderr, "horde: %s[%d]: using semi-static HTTP%hu\n", name, getpid(), status);
+									if(hst->debug) fprintf(stderr, "horde: %s[%d]: using semi-static HTTP%hu\n", hst->name, getpid(), status);
 									char *sed=malloc(400+strlen(statusmsg));
 									if(!sed)
 									{
@@ -406,7 +397,7 @@ int handle(const char *inp, const char *name, char **root)
 							while((ext=strchr(ext, '.'))) last=ext++;
 							if((ext=last))
 							{
-								if(debug) fprintf(stderr, "horde: %s[%d]: sending request to ext\n", name, getpid());
+								if(hst->debug) fprintf(stderr, "horde: %s[%d]: sending request to ext\n", hst->name, getpid());
 								hmsg ex=new_hmsg("ext", ext+1);
 								hsend(1, ex);
 								free_hmsg(ex);
@@ -436,19 +427,19 @@ int handle(const char *inp, const char *name, char **root)
 												}
 												else if(strcmp(h2->funct, "err")==0)
 												{
-													if(debug)
+													if(hst->debug)
 													{
-														fprintf(stderr, "horde: %s[%d]: ext failed: %s\n", name, getpid(), h2->funct);
+														fprintf(stderr, "horde: %s[%d]: ext failed: %s\n", hst->name, getpid(), h2->funct);
 														unsigned int i;
 														for(i=0;i<h2->nparms;i++)
 														{
-															fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h2->p_tag[i], h2->p_value[i]);
+															fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", hst->name, getpid(), h2->p_tag[i], h2->p_value[i]);
 															if(strcmp(h2->p_tag[i], "errno")==0)
 															{
-																fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h2->p_value[i])));
+																fprintf(stderr, "horde: %s[%d]:\t\t%s\n", hst->name, getpid(), strerror(hgetlong(h2->p_value[i])));
 															}
 														}
-														fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h2->data);
+														fprintf(stderr, "horde: %s[%d]:\t%s\n", hst->name, getpid(), h2->data);
 													}
 													hmsg eh=new_hmsg("err", inp);
 													if(eh)
@@ -461,8 +452,8 @@ int handle(const char *inp, const char *name, char **root)
 														hsend(1, eh);
 														free_hmsg(eh);
 													}
-													hfin(EXIT_FAILURE);
-													return(EXIT_FAILURE);
+													hst->shutdown=true;
+													return;
 												}
 												free_hmsg(h2);
 											}
@@ -504,7 +495,7 @@ int handle(const char *inp, const char *name, char **root)
 								for(proc=0;proc<nprocs;proc++)
 								{
 									lvalue apply=l_eval(procs[proc].rule, lv, app);
-									//if(debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
+									//if(hst->debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", hst->name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
 									if(l_asbool(apply))
 									{
 										hmsg fh=new_hmsg_d(procs[proc].functor->funct, r->data, r->dlen);
@@ -546,19 +537,19 @@ int handle(const char *inp, const char *name, char **root)
 														}
 														else if(strcmp(h2->funct, "err")==0)
 														{
-															if(debug)
+															if(hst->debug)
 															{
-																fprintf(stderr, "horde: %s[%d]: %s failed: %s\n", name, getpid(), procs[proc].functor->funct, h2->funct);
+																fprintf(stderr, "horde: %s[%d]: %s failed: %s\n", hst->name, getpid(), procs[proc].functor->funct, h2->funct);
 																unsigned int i;
 																for(i=0;i<h2->nparms;i++)
 																{
-																	fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h2->p_tag[i], h2->p_value[i]);
+																	fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", hst->name, getpid(), h2->p_tag[i], h2->p_value[i]);
 																	if(strcmp(h2->p_tag[i], "errno")==0)
 																	{
-																		fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h2->p_value[i])));
+																		fprintf(stderr, "horde: %s[%d]:\t\t%s\n", hst->name, getpid(), strerror(hgetlong(h2->p_value[i])));
 																	}
 																}
-																fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h2->data);
+																fprintf(stderr, "horde: %s[%d]:\t%s\n", hst->name, getpid(), h2->data);
 															}
 															hmsg eh=new_hmsg("err", inp);
 															if(eh)
@@ -571,8 +562,8 @@ int handle(const char *inp, const char *name, char **root)
 																hsend(1, eh);
 																free_hmsg(eh);
 															}
-															hfin(EXIT_FAILURE);
-															return(EXIT_FAILURE);
+															hst->shutdown=true;
+															return;
 														}
 														free_hmsg(h2);
 													}
@@ -616,100 +607,22 @@ int handle(const char *inp, const char *name, char **root)
 				free(path);
 			}
 			procdone:
-			if(pipeline)
+			if(hst->pipeline)
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", name, getpid());
+				if(hst->debug) fprintf(stderr, "horde: %s[%d]: request serviced, available for another\n", hst->name, getpid());
 				hmsg ready=new_hmsg("ready", NULL);
 				hsend(1, ready);
 				free_hmsg(ready);
 			}
 			else
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", name, getpid());
-				errupt++;
+				if(hst->debug) fprintf(stderr, "horde: %s[%d]: finished service, not making self available again\n", hst->name, getpid());
+				hst->shutdown=true;
 			}
-		}
-		else if(strcmp(h->funct, "shutdown")==0)
-		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", name, getpid());
-			errupt++;
-		}
-		else if(strcmp(h->funct, "root")==0)
-		{
-			if(!h->data)
-			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", name, getpid());
-				hmsg eh=new_hmsg("err", inp);
-				if(eh)
-				{
-					add_htag(eh, "what", "missing-data");
-					if(from) add_htag(eh, "to", from);
-					hsend(1, eh);
-					free_hmsg(eh);
-				}
-			}
-			else
-			{
-				char *nr=strdup(h->data);
-				if(!nr)
-				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: allocation failure (char *root): strdup: %s\n", name, getpid(), strerror(errno));
-					hmsg eh=new_hmsg("err", inp);
-					if(eh)
-					{
-						add_htag(eh, "what", "allocation-failure");
-						add_htag(eh, "fatal", NULL);
-						if(from) add_htag(eh, "to", from);
-						hsend(1, eh);
-						free_hmsg(eh);
-					}
-					hfin(EXIT_FAILURE);
-					return(EXIT_FAILURE);
-				}
-				if(*root) free(*root);
-				*root=nr;
-				if(debug) fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", name, getpid(), *root);
-			}
-		}
-		else if(strcmp(h->funct, "pipeline")==0)
-		{
-			if(h->data)
-			{
-				if(strcmp(h->data, "false")==0)
-					pipeline=false;
-				else if(strcmp(h->data, "true")==0)
-					pipeline=true;
-				else
-				{
-					hmsg eh=new_hmsg("err", inp);
-					if(eh)
-					{
-						add_htag(eh, "what", "invalid-data");
-						add_htag(eh, "expected", "bool");
-						if(from) add_htag(eh, "to", from);
-						hsend(1, eh);
-						free_hmsg(eh);
-					}
-				}
-			}
-			else
-				pipeline=true;
-		}
-		else if(strcmp(h->funct, "debug")==0)
-		{
-			if(h->data)
-			{
-				if(strcmp(h->data, "true")==0)
-					debug=true;
-				else if(strcmp(h->data, "false")==0)
-					debug=false;
-			}
-			else
-				debug=true;
 		}
 		else
 		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+			if(hst->debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst->name, getpid(), h->funct);
 			hmsg eh=new_hmsg("err", inp);
 			if(eh)
 			{
@@ -721,7 +634,7 @@ int handle(const char *inp, const char *name, char **root)
 		}
 		free_hmsg(h);
 	}
-	return(errupt);
+	return;
 }
 
 int add_processor(processor p)

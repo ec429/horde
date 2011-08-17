@@ -433,6 +433,9 @@ hmsg hmsg_read(hmsg h)
 
 bool hmsg_state(hmsg h, hstate *s)
 {
+	if(!h) return(false);
+	if(!h->funct) return(false);
+	if(!s) return(false);
 	if(strcmp(h->funct, "shutdown")==0)
 	{
 		if(s->debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", s->name, getpid());
