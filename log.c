@@ -17,7 +17,7 @@
 #include "libhorde.h"
 
 int handle(const char *inp);
-char *logfile;
+char *logfile; // we don't use hstate because we're an 'only', and we're atypical
 
 int main(void)
 {

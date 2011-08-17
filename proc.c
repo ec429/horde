@@ -500,7 +500,10 @@ void handle(const char *inp, hstate *hst)
 									{
 										hmsg fh=new_hmsg_d(procs[proc].functor->funct, r->data, r->dlen);
 										for(unsigned int i=0;i<h->nparms;i++)
-											add_htag(fh, h->p_tag[i], h->p_value[i]);
+										{
+											if(strcmp(h->p_tag[i], "from")!=0)
+												add_htag(fh, h->p_tag[i], h->p_value[i]);
+										}
 										hsend(1, fh);
 										free_hmsg(fh);
 										processed=true;
