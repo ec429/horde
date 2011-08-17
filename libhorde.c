@@ -431,6 +431,97 @@ hmsg hmsg_read(hmsg h)
 	return(h);
 }
 
+bool hmsg_state(hmsg h, hstate &s)
+{
+	if(strcmp(h->funct, "shutdown")==0)
+	{
+		if(s->debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", s->name, getpid());
+		h->shutdown=true;
+		return(false);
+	}
+	if(strcmp(h->funct, "debug")==0)
+	{
+		if(h->data)
+		{
+			if(strcmp(h->data, "true")==0)
+				s->debug=true;
+			else if(strcmp(h->data, "false")==0)
+				s->debug=false;
+		}
+		else
+			s->debug=true;
+		return(true);
+	}
+	if(strcmp(h->funct, "pipeline")==0)
+	{
+		if(h->data)
+		{
+			if(strcmp(h->data, "true")==0)
+				s->pipeline=true;
+			else if(strcmp(h->data, "false")==0)
+				s->pipeline=false;
+		}
+		else
+			s->pipeline=true;
+		return(true);
+	}
+	if(strcmp(h->funct, "root")==0)
+	{
+		if(!h->data)
+		{
+			if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", s->name, getpid());
+			hmsg eh=new_hmsg("err", inp);
+			if(eh)
+			{
+				add_htag(eh, "what", "missing-data");
+				const char *from=gettag(h, "from");
+				if(from) add_htag(eh, "to", from);
+				hsend(1, eh);
+				free_hmsg(eh);
+			}
+		}
+		else
+		{
+			char *nr=strdup(h->data);
+			if(!nr)
+			{
+				if(s->debug) fprintf(stderr, "horde: %s[%d]: allocation failure (char *root): strdup: %s\n", s->name, getpid(), strerror(errno));
+				hmsg eh=new_hmsg("err", inp);
+				if(eh)
+				{
+					add_htag(eh, "what", "allocation-failure");
+					add_htag(eh, "fatal", NULL);
+					const char *from=gettag(h, "from");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
+				hfin(EXIT_FAILURE);
+				exit(EXIT_FAILURE); // shouldn't really happen
+			}
+			if(s->root) free(s->root);
+			s->root=nr;
+			if(s->debug) fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", s->name, getpid(), s->root);
+		}
+		return(true);
+	}
+	return(false);
+}
+
+const char *gettag(hmsg h, const char *tag)
+{
+	if(!h) return(NULL);
+	if(!tag) return(NULL);
+	for(unsigned int i=0;i<h->nparms;i++)
+	{
+		if(!h->p_tag[i]) continue;
+		if(strcmp(h->p_tag[i], tag)) continue;
+		if(h->p_value[i]) return(h->p_value[i]);
+		return("true"); // for implicit tags
+	}
+	return(NULL);
+}
+
 void free_hmsg(hmsg h)
 {
 	if(!h) return;

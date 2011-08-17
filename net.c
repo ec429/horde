@@ -26,26 +26,25 @@
 #include "libhorde.h"
 
 void err(unsigned int status, const char *statusmsg, const char *headers, int fd);
-bool check_msgs(const char *name);
+bool check_msgs(hstate *hst);
 char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua); // returns a malloc-like pointer
-
-bool debug;
 
 int main(int argc, char **argv)
 {
-	const char *name=argc?argv[0]:"net";
+	hstate hst;
+	hst.name=argc?argv[0]:"net";
+	hst.debug=false;
 	const char *server="horde/"HTTPD_VERSION;
-	debug=false;
-	while(check_msgs(name));
+	while(check_msgs(&hst));
 	int newhandle;
 	struct sockaddr remote;
 	socklen_t addr_size=sizeof(remote);
 	time_t stamp=0;
 	if((newhandle=accept(3, (struct sockaddr *)&remote, &addr_size))==-1)
 	{
-		if(debug)
+		if(hst.debug)
 		{
-			fprintf(stderr, "horde: %s[%d]: ", name, getpid());
+			fprintf(stderr, "horde: %s[%d]: ", hst.name, getpid());
 			perror("accept");
 		}
 		hfin(EXIT_FAILURE);
@@ -61,7 +60,7 @@ int main(int argc, char **argv)
 		hmsg ac=new_hmsg("accepted", date);
 		if(!ac)
 		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg ac): new_hmsg: %s", name, getpid(), strerror(errno));
+			if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg ac): new_hmsg: %s", hst.name, getpid(), strerror(errno));
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -69,7 +68,7 @@ int main(int argc, char **argv)
 		}
 		hsend(1, ac);
 		free_hmsg(ac);
-		if(debug) fprintf(stderr, "horde: %s[%d]: accepted at %s\n", name, getpid(), date);
+		if(hst.debug) fprintf(stderr, "horde: %s[%d]: accepted at %s\n", hst.name, getpid(), date);
 	}
 	bool is6=false; // is this IPv6 (else v4)?
 	switch(((struct sockaddr_in *)&remote)->sin_family)
@@ -81,7 +80,7 @@ int main(int argc, char **argv)
 			is6=true;
 		break;
 		default:
-			if(debug) fprintf(stderr, "horde: %s[%d]: 500 - bad address family, is %u", name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
+			if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - bad address family, is %u", hst.name, getpid(), ((struct sockaddr_in *)&remote)->sin_family);
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -90,7 +89,7 @@ int main(int argc, char **argv)
 	}
 	char *ip = malloc(is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
 	if(ip) inet_ntop(is6?AF_INET6:AF_INET, is6?(const void *)&((struct sockaddr_in6 *)&remote)->sin6_addr:(const void *)&((struct sockaddr_in *)&remote)->sin_addr, ip, is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
-	if(ip&&debug) fprintf(stderr, "horde: %s[%d]: remote IP is %s\n", name, getpid(), ip);
+	if(ip&&hst.debug) fprintf(stderr, "horde: %s[%d]: remote IP is %s\n", hst.name, getpid(), ip);
 	char *buf;unsigned int bl, bi;
 	init_char(&buf, &bl, &bi);
 	while((bi<4) || strncmp(buf+bi-4, "\r\n\r\n", 4))
@@ -111,14 +110,14 @@ int main(int argc, char **argv)
 	}
 	if(!buf)
 	{
-		if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure while reading from socket\n", name, getpid());
+		if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure while reading from socket\n", hst.name, getpid());
 		err(500, "Internal Server Error", NULL, newhandle);
 		close(newhandle);
 		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
-	while(check_msgs(name));
-	if(debug) fprintf(stderr, "horde: %s[%d]: read %u bytes\n", name, getpid(), bi);
+	while(check_msgs(&hst));
+	if(hst.debug) fprintf(stderr, "horde: %s[%d]: read %u bytes\n", hst.name, getpid(), bi);
 	char **line=malloc(bi*sizeof(char *));
 	char *next=buf, *last;
 	while(*next)
@@ -144,7 +143,7 @@ int main(int argc, char **argv)
 		eoh:
 		if(nlines==0)
 		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: 400 - empty request\n", name, getpid());
+			if(hst.debug) fprintf(stderr, "horde: %s[%d]: 400 - empty request\n", hst.name, getpid());
 			err(400, "Bad Request (Empty)", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_SUCCESS);
@@ -164,7 +163,7 @@ int main(int argc, char **argv)
 		if(v==HTTP_VERSION_UNKNOWN)
 		{
 			err(505, "HTTP Version Not Supported", NULL, newhandle);
-			if(debug) fprintf(stderr, "horde: %s[%d]: 505 HTTP Version Not Supported [%s]\n", name, getpid(), ver);
+			if(hst.debug) fprintf(stderr, "horde: %s[%d]: 505 HTTP Version Not Supported [%s]\n", hst.name, getpid(), ver);
 			close(newhandle);
 			hfin(EXIT_SUCCESS); // success because it's an unrecognised version, not merely an unimplemented feature
 			return(EXIT_SUCCESS);
@@ -177,7 +176,7 @@ int main(int argc, char **argv)
 				{
 					if(strncmp(uri, "http://", 7)!=0)
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 400 Bad Request (Malformed URI) '%s'\n", name, getpid(), uri);
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 400 Bad Request (Malformed URI) '%s'\n", hst.name, getpid(), uri);
 						err(400, "Bad Request (Malformed URI)", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_SUCCESS);
@@ -200,21 +199,21 @@ int main(int argc, char **argv)
 			break;
 			case HTTP_METHOD_CONNECT:
 				err(501, "Not Supported", NULL, newhandle);
-				if(debug) fprintf(stderr, "horde: %s[%d]: 501 Not Supported (%s)\n", name, getpid(), method);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: 501 Not Supported (%s)\n", hst.name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_SUCCESS); // success because it's an inapplicable method, not merely an unimplemented feature
 				return(EXIT_SUCCESS);
 			break;
 			case HTTP_METHOD_UNKNOWN:
 				err(501, "Unknown Method", NULL, newhandle);
-				if(debug) fprintf(stderr, "horde: %s[%d]: 501 Unknown Method (%s(\n", name, getpid(), method);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: 501 Unknown Method (%s(\n", hst.name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_SUCCESS); // success because it's an unrecognised method, not merely an unimplemented feature
 				return(EXIT_SUCCESS);
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
-				if(debug) fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", hst.name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_FAILURE);
 				return(EXIT_FAILURE);
@@ -223,7 +222,7 @@ int main(int argc, char **argv)
 		struct hdr {http_header name; const char *un_name; const char *value;} *headers=malloc(nlines*sizeof(struct hdr));
 		if(!headers)
 		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (struct hdr *headers): malloc: %s\n", name, getpid(), strerror(errno));
+			if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (struct hdr *headers): malloc: %s\n", hst.name, getpid(), strerror(errno));
 			err(500, "Internal Server Error", NULL, newhandle);
 			close(newhandle);
 			hfin(EXIT_FAILURE);
@@ -248,15 +247,15 @@ int main(int argc, char **argv)
 					ua=colon;
 			} // otherwise, we just ignore the line
 		}
-		while(check_msgs(name));
+		while(check_msgs(&hst));
 		switch(m)
 		{
 			case HTTP_METHOD_GET:;
-				if(debug) fprintf(stderr, "horde: %s[%d]: handling GET request (%s) (%u headers)\n", name, getpid(), uri, nhdrs);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: handling GET request (%s) (%u headers)\n", hst.name, getpid(), uri, nhdrs);
 				hmsg path=new_hmsg("path", uri);
 				if(!path)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (new_hmsg): %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (new_hmsg): %s\n", hst.name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -264,126 +263,102 @@ int main(int argc, char **argv)
 				}
 				if(add_htag(path, "host", host))
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: allocation failure (add_htag): %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: allocation failure (add_htag): %s\n", hst.name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				if(debug) fprintf(stderr, "horde: %s[%d]: sending request to path\n", name, getpid());
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: sending request to path\n", hst.name, getpid());
 				if(hsend(1, path)>0)
-				{
 					free(path);
-				}
 				else
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - communication failure (hsend): %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - communication failure (hsend): %s\n", hst.name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
 				hmsg h=NULL;
-				while(1)
+				do
 				{
 					char *frompath=getl(STDIN_FILENO);
 					if(!(frompath&&*frompath))
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", hst.name, getpid(), strerror(errno));
 						err(500, "Internal Server Error", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), frompath);
 					h=hmsg_from_str(frompath, true);
 					if(h)
-					{
 						free(frompath);
-					}
 					else
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from path: %s\n", name, getpid(), frompath);
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from path: %s\n", hst.name, getpid(), frompath);
 						err(500, "Internal Server Error", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					const char *from=NULL;
-					unsigned int i;
-					for(i=0;i<h->nparms;i++)
+				}
+				while(hmsg_state(h, &hst));
+				const char *from=gettag(h, "from");
+				if(hst.shutdown)
+				{
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", hst.name, getpid());
+					err(503, "Service Unavailable", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_SUCCESS);
+					return(EXIT_SUCCESS);
+				}
+				if(strcmp(h->funct, "err")==0)
+				{
+					if(hst.debug)
 					{
-						if(strcmp(h->p_tag[i], "from")==0)
-						{
-							from=h->p_value[i];
-							break;
-						}
+						fprintf(stderr, "horde: %s[%d]: 500 - path rewriting failed: %s\n", hst.name, getpid(), h->funct);
+						unsigned int i;
+						for(i=0;i<h->nparms;i++)
+							fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", hst.name, getpid(), h->p_tag[i], h->p_value[i]);
+						fprintf(stderr, "horde: %s[%d]:\t%s\n", hst.name, getpid(), h->data);
 					}
-					if(strcmp(h->funct, "path"))
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				else if(strcmp(h->funct, "path")!=0)
+				{
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst.name, getpid(), h->funct);
+					hmsg eh=new_hmsg("err", frompath);
+					if(eh)
 					{
-						if(strcmp(h->funct, "shutdown")==0)
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
-							err(503, "Service Unavailable", NULL, newhandle);
-							close(newhandle);
-							hfin(EXIT_SUCCESS);
-							return(EXIT_SUCCESS);
-						}
-						else if(strcmp(h->funct, "err")==0)
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: 500 - path rewriting failed: %s\n", name, getpid(), h->funct);
-							unsigned int i;
-							for(i=0;i<h->nparms;i++)
-								fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
-							fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
-							err(500, "Internal Server Error", NULL, newhandle);
-							close(newhandle);
-							hfin(EXIT_FAILURE);
-							return(EXIT_FAILURE);
-						}
-						else if(strcmp(h->funct, "debug")==0)
-						{
-							if(h->data)
-							{
-								if(strcmp(h->data, "true")==0)
-									debug=true;
-								else if(strcmp(h->data, "false")==0)
-									debug=false;
-							}
-							else
-								debug=true;
-						}
-						else
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
-							hmsg eh=new_hmsg("err", frompath);
-							if(eh)
-							{
-								add_htag(eh, "what", "unrecognised-funct");
-								if(from) add_htag(eh, "to", from);
-								hsend(1, eh);
-								free_hmsg(eh);
-							}
-						}
-						free_hmsg(h);
+						add_htag(eh, "what", "unrecognised-funct");
+						if(from) add_htag(eh, "to", from);
+						hsend(1, eh);
+						free_hmsg(eh);
 					}
-					else
-						break;
+					free_hmsg(h);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
 				}
 				if(!h->data)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - path data is empty\n", name, getpid());
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - path data is empty\n", hst.name, getpid());
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
 				char *rpath=strdup(h->data);
-				if(debug) fprintf(stderr, "horde: %s[%d]: sending request to proc for %s\n", name, getpid(), rpath);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: sending request to proc for %s\n", hst.name, getpid(), rpath);
 				hmsg p=new_hmsg("proc", h->data);
 				if(!p)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg p): new_hmsg: %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (hmsg p): new_hmsg: %s\n", hst.name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -402,130 +377,86 @@ int main(int argc, char **argv)
 					}
 					else
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: ign - allocation failure (char *hline): malloc: %s\n", name, getpid(), strerror(errno));
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: ign - allocation failure (char *hline): malloc: %s\n", hst.name, getpid(), strerror(errno));
 					}
 				}
 				hsend(1, p);
 				free_hmsg(p);
-				while(1)
+				do
 				{
 					char *fromproc=getl(STDIN_FILENO);
 					if(!(fromproc&&*fromproc))
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", name, getpid(), strerror(errno));
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - failed to read response (getl): %s\n", hst.name, getpid(), strerror(errno));
 						err(500, "Internal Server Error", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					//fprintf(stderr, "horde: %s[%d]: < '%s'\n", name, getpid(), fromproc);
 					h=hmsg_from_str(fromproc, true);
 					if(h)
-					{
 						free(fromproc);
-					}
 					else
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from proc: %s\n", name, getpid(), fromproc);
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - couldn't understand the response from proc: %s\n", hst.name, getpid(), fromproc);
 						err(500, "Internal Server Error", NULL, newhandle);
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
 					}
-					const char *from=NULL;
-					unsigned int i;
-					for(i=0;i<h->nparms;i++)
+				}
+				while(hmsg_state(h, &hst));
+				const char *from=gettag(h, "from");
+				if(strcmp(h->funct, "err")==0)
+				{
+					if(hst.debug)
 					{
-						if(strcmp(h->p_tag[i], "from")==0)
+						fprintf(stderr, "horde: %s[%d]: 500 - proc failed: %s\n", hst.name, getpid(), h->funct);
+						unsigned int i;
+						for(i=0;i<h->nparms;i++)
 						{
-							from=h->p_value[i];
-							break;
+							fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", hst.name, getpid(), h->p_tag[i], h->p_value[i]);
+							if(strcmp(h->p_tag[i], "errno")==0)
+							{
+								fprintf(stderr, "horde: %s[%d]:\t\t%s\n", hst.name, getpid(), strerror(hgetlong(h->p_value[i])));
+							}
 						}
+						fprintf(stderr, "horde: %s[%d]:\t%s\n", hst.name, getpid(), h->data);
 					}
-					if(strcmp(h->funct, "proc"))
+					err(500, "Internal Server Error", NULL, newhandle);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
+				}
+				else if(strcmp(h->funct, "proc")!=0)
+				{
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst.name, getpid(), h->funct);
+					hmsg eh=new_hmsg("err", frompath);
+					if(eh)
 					{
-						if(strcmp(h->funct, "shutdown")==0)
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: 503 - server is shutting down\n", name, getpid());
-							err(503, "Service Unavailable", NULL, newhandle);
-							close(newhandle);
-							hfin(EXIT_SUCCESS);
-							return(EXIT_SUCCESS);
-						}
-						else if(strcmp(h->funct, "err")==0)
-						{
-							if(debug)
-							{
-								fprintf(stderr, "horde: %s[%d]: 500 - proc failed: %s\n", name, getpid(), h->funct);
-								unsigned int i;
-								for(i=0;i<h->nparms;i++)
-								{
-									fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
-									if(strcmp(h->p_tag[i], "errno")==0)
-									{
-										fprintf(stderr, "horde: %s[%d]:\t\t%s\n", name, getpid(), strerror(hgetlong(h->p_value[i])));
-									}
-								}
-								fprintf(stderr, "horde: %s[%d]:\t%s\n", name, getpid(), h->data);
-							}
-							err(500, "Internal Server Error", NULL, newhandle);
-							close(newhandle);
-							hfin(EXIT_FAILURE);
-							return(EXIT_FAILURE);
-						}
-						else if(strcmp(h->funct, "debug")==0)
-						{
-							if(h->data)
-							{
-								if(strcmp(h->data, "true")==0)
-									debug=true;
-								else if(strcmp(h->data, "false")==0)
-									debug=false;
-							}
-							else
-								debug=true;
-						}
-						else
-						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
-							hmsg eh=new_hmsg("err", fromproc);
-							if(eh)
-							{
-								add_htag(eh, "what", "unrecognised-funct");
-								if(from) add_htag(eh, "to", from);
-								hsend(1, eh);
-								free_hmsg(eh);
-							}
-						}
-						free_hmsg(h);
+						add_htag(eh, "what", "unrecognised-funct");
+						if(from) add_htag(eh, "to", from);
+						hsend(1, eh);
+						free_hmsg(eh);
 					}
-					else
-						break;
+					free_hmsg(h);
+					close(newhandle);
+					hfin(EXIT_FAILURE);
+					return(EXIT_FAILURE);
 				}
 				unsigned short status=200;
-				const char *statusmsg=NULL;
+				const char *statusmsg=gettag(h, "statusmsg");
 				char *fserver; unsigned int fsl, fsi;
 				init_char(&fserver, &fsl, &fsi);
 				append_str(&fserver, &fsl, &fsi, server);
 				unsigned int i;
 				for(i=0;i<h->nparms;i++)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", name, getpid(), h->p_tag[i], h->p_value[i]);
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]:\t(%s|%s)\n", hst.name, getpid(), h->p_tag[i], h->p_value[i]);
 					if(strcmp(h->p_tag[i], "status")==0)
 					{
 						unsigned short ns=hgetshort(h->p_value[i]);
 						if((ns<600)&&(ns>99)) status=ns;
-					}
-					else if(strcmp(h->p_tag[i], "statusmsg")==0)
-						statusmsg=h->p_value[i];
-					else if(strcmp(h->p_tag[i], "read")==0)
-					{
-						FILE *fp=fopen(h->p_value[i], "r");
-						if(fp)
-						{
-							if(h->data) free(h->data);
-							h->dlen=dslurp(fp, &h->data);
-						}
 					}
 					else if(strcmp(h->p_tag[i], "server")==0)
 					{
@@ -544,7 +475,7 @@ int main(int argc, char **argv)
 				char *head=malloc(9+TL_SHORT+strlen(statusmsg)+1+6+datelen+1+8+strlen(fserver)+1+16+TL_SIZET+1+1);
 				if(!head)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *head): malloc: %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 500 - allocation failure (char *head): malloc: %s\n", hst.name, getpid(), strerror(errno));
 					err(500, "Internal Server Error", NULL, newhandle);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
@@ -555,7 +486,7 @@ int main(int argc, char **argv)
 				ssize_t n=sendall(newhandle, head, strlen(head), 0);
 				if(n)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(head) failed, %zd\n", name, getpid(), n);
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(head) failed, %zd\n", hst.name, getpid(), n);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
@@ -568,14 +499,14 @@ int main(int argc, char **argv)
 						n=sendall(newhandle, h->p_value[i], strlen(h->p_value[i]), 0);
 						if(n)
 						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header) failed, %zd\n", name, getpid(), n);
+							if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header) failed, %zd\n", hst.name, getpid(), n);
 							close(newhandle);
 							hfin(EXIT_FAILURE);
 							return(EXIT_FAILURE);
 						}
 						if((n=sendall(newhandle, "\n", 1, 0)))
 						{
-							if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header, \\n) failed, %zd\n", name, getpid(), n);
+							if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(extra header, \\n) failed, %zd\n", hst.name, getpid(), n);
 							close(newhandle);
 							hfin(EXIT_FAILURE);
 							return(EXIT_FAILURE);
@@ -584,7 +515,7 @@ int main(int argc, char **argv)
 				}
 				if((n=sendall(newhandle, "\n", 1, 0)))
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(head, \\n) failed, %zd\n", name, getpid(), n);
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(head, \\n) failed, %zd\n", hst.name, getpid(), n);
 					close(newhandle);
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
@@ -594,7 +525,7 @@ int main(int argc, char **argv)
 					n=sendall(newhandle, h->data, h->dlen, 0);
 					if(n)
 					{
-						if(debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", name, getpid(), n, strerror(errno));
+						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", hst.name, getpid(), n, strerror(errno));
 						close(newhandle);
 						hfin(EXIT_FAILURE);
 						return(EXIT_FAILURE);
@@ -613,7 +544,7 @@ int main(int argc, char **argv)
 			break;
 			default:
 				err(501, "Not Implemented", NULL, newhandle);
-				if(debug) fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", name, getpid(), method);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: 501 Not Implemented (%s)\n", hst.name, getpid(), method);
 				close(newhandle);
 				hfin(EXIT_FAILURE);
 				return(EXIT_FAILURE);
@@ -622,7 +553,7 @@ int main(int argc, char **argv)
 	}
 	free(line);
 	free(buf);
-	if(debug) fprintf(stderr, "horde: %s[%d]: closing conn\n", name, getpid());
+	if(hst.debug) fprintf(stderr, "horde: %s[%d]: closing conn\n", hst.name, getpid());
 	close(newhandle);
 	hfin(EXIT_SUCCESS);
 	return(EXIT_SUCCESS);
@@ -665,7 +596,7 @@ Connection: close\n\
 	if(m) free(buf);
 }
 
-bool check_msgs(const char *name)
+bool check_msgs(hstate *hst)
 {
 	fd_set master, readfds;
 	FD_ZERO(&master);
@@ -678,29 +609,20 @@ bool check_msgs(const char *name)
 	if(FD_ISSET(STDIN_FILENO, &readfds))
 	{
 		char *buf=getl(STDIN_FILENO);
+		if(!buf) return(false);
 		if(*buf)
 		{
 			hmsg h=hmsg_from_str(buf, true);
 			if(h)
 			{
-				if(strcmp(h->funct, "debug")==0)
-				{
-					if(h->data)
-					{
-						if(strcmp(h->data, "true")==0)
-							debug=true;
-						else if(strcmp(h->data, "false")==0)
-							debug=false;
-					}
-					else
-						debug=true;
-				}
+				if(!hmsg_state(h, hst))
+					fprintf(stderr, "horde: %s[%d]: Unrecognised funct %s in check_msgs()\n", hst->name, getpid(), h->funct);
 				free_hmsg(h);
 			}
 			else
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: Nonsense hmsg received\n", name, getpid());
-				if(debug) fprintf(stderr, "\t%s\n", buf);
+				if(hst->debug) fprintf(stderr, "horde: %s[%d]: Nonsense hmsg received\n", hst->name, getpid());
+				if(hst->debug) fprintf(stderr, "\t%s\n", buf);
 			}
 		}
 		free(buf);
