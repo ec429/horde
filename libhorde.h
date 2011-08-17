@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <ctype.h>
 #include <regex.h>
+#include <errno.h>
 
 #include "bits.h"
 #include "http.h"
@@ -100,7 +101,7 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str, bool read); // should we hmsg_read() where appropriate?  (Typically, YES except in the dispatcher)
 hmsg hmsg_read(hmsg h); // apply a (read) tag if one is present (and data is absent)
-bool hmsg_state(hmsg h, hstate &s); // returns false if message was not a recognised state message
+bool hmsg_state(hmsg h, hstate *s); // returns false if message was not a recognised state message
 const char *gettag(hmsg h, const char *tag);
 void free_hmsg(hmsg h);
 

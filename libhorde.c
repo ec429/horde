@@ -431,12 +431,12 @@ hmsg hmsg_read(hmsg h)
 	return(h);
 }
 
-bool hmsg_state(hmsg h, hstate &s)
+bool hmsg_state(hmsg h, hstate *s)
 {
 	if(strcmp(h->funct, "shutdown")==0)
 	{
 		if(s->debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", s->name, getpid());
-		h->shutdown=true;
+		s->shutdown=true;
 		return(false);
 	}
 	if(strcmp(h->funct, "debug")==0)
@@ -469,8 +469,8 @@ bool hmsg_state(hmsg h, hstate &s)
 	{
 		if(!h->data)
 		{
-			if(debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", s->name, getpid());
-			hmsg eh=new_hmsg("err", inp);
+			if(s->debug) fprintf(stderr, "horde: %s[%d]: missing data in (root)\n", s->name, getpid());
+			hmsg eh=new_hmsg("err", NULL);
 			if(eh)
 			{
 				add_htag(eh, "what", "missing-data");
@@ -486,7 +486,7 @@ bool hmsg_state(hmsg h, hstate &s)
 			if(!nr)
 			{
 				if(s->debug) fprintf(stderr, "horde: %s[%d]: allocation failure (char *root): strdup: %s\n", s->name, getpid(), strerror(errno));
-				hmsg eh=new_hmsg("err", inp);
+				hmsg eh=new_hmsg("err", NULL);
 				if(eh)
 				{
 					add_htag(eh, "what", "allocation-failure");

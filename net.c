@@ -332,7 +332,7 @@ int main(int argc, char **argv)
 				else if(strcmp(h->funct, "path")!=0)
 				{
 					if(hst.debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst.name, getpid(), h->funct);
-					hmsg eh=new_hmsg("err", frompath);
+					hmsg eh=new_hmsg("err", NULL);
 					if(eh)
 					{
 						add_htag(eh, "what", "unrecognised-funct");
@@ -406,7 +406,7 @@ int main(int argc, char **argv)
 					}
 				}
 				while(hmsg_state(h, &hst));
-				const char *from=gettag(h, "from");
+				from=gettag(h, "from");
 				if(strcmp(h->funct, "err")==0)
 				{
 					if(hst.debug)
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
 				else if(strcmp(h->funct, "proc")!=0)
 				{
 					if(hst.debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst.name, getpid(), h->funct);
-					hmsg eh=new_hmsg("err", frompath);
+					hmsg eh=new_hmsg("err", NULL);
 					if(eh)
 					{
 						add_htag(eh, "what", "unrecognised-funct");
