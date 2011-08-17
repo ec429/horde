@@ -37,48 +37,41 @@ void sys_mime_lib(const char *name);
 
 mime_lib lib;
 
-bool debug;
-
 int main(int argc, char **argv)
 {
-	const char *name=argc?argv[0]:"ext";
-	debug=false;
+	hstate hst;
+	hst.name=argc?argv[0]:"ext";
+	hst.shutdown=false;
+	hst.debug=false;
+	hst.pipeline=true;
 	lib.nuser=lib.nsystem=0;
 	lib.user=lib.system=NULL;
-	sys_mime_lib(name);
-	//fprintf(stderr, "horde: %s[%d]: built mime_lib; ready\n", name, getpid());
-	int errupt=0;
-	while(!errupt)
+	sys_mime_lib(hst.name);
+	//fprintf(stderr, "horde: %s[%d]: built mime_lib; ready\n", hst.name, getpid());
+	while(!hst.shutdown)
 	{
 		char *inp=getl(STDIN_FILENO);
 		if(!inp) break;
 		if(!*inp) {free(inp);continue;}
 		hmsg h=hmsg_from_str(inp, true);
+		free(inp);
+		if(hmsg_state(h, &hst)) {free_hmsg(h);continue;}
 		if(h)
 		{
-			const char *from=NULL;
-			unsigned int i;
-			for(i=0;i<h->nparms;i++)
-			{
-				if(strcmp(h->p_tag[i], "from")==0)
-				{
-					from=h->p_value[i];
-					break;
-				}
-			}
+			const char *from=gettag(h, "from");
 			if(strcmp(h->funct, "ext")==0)
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: looking up '%s'\n", name, getpid(), h->data);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: looking up '%s'\n", hst.name, getpid(), h->data);
 				char *ctype=mime_type(h->data);
 				if(!ctype||!*ctype)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: not found\n", name, getpid());
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: not found\n", hst.name, getpid());
 					if(ctype) free(ctype);
 					ctype=strdup("application/octet-stream");
 				}
 				if(!ctype)
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: allocation failure (ctype): strdup: %s\n", name, getpid(), strerror(errno));
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: allocation failure (ctype): strdup: %s\n", hst.name, getpid(), strerror(errno));
 					hmsg r=new_hmsg("err", NULL);
 					add_htag(r, "what", "mime-type");
 					if(from) add_htag(r, "to", from);
@@ -87,7 +80,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					if(debug) fprintf(stderr, "horde: %s[%d]: found; is %s\n", name, getpid(), ctype);
+					if(hst.debug) fprintf(stderr, "horde: %s[%d]: found; is %s\n", hst.name, getpid(), ctype);
 					hmsg r=new_hmsg("ext", ctype);
 					if(from) add_htag(r, "to", from);
 					hsend(1, r);
@@ -97,26 +90,9 @@ int main(int argc, char **argv)
 				hsend(1, ready);
 				free_hmsg(ready);
 			}
-			else if(strcmp(h->funct, "shutdown")==0)
-			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", name, getpid());
-				errupt++;
-			}
-			else if(strcmp(h->funct, "debug")==0)
-			{
-				if(h->data)
-				{
-					if(strcmp(h->data, "true")==0)
-						debug=true;
-					else if(strcmp(h->data, "false")==0)
-						debug=false;
-				}
-				else
-					debug=true;
-			}
 			else
 			{
-				if(debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", name, getpid(), h->funct);
+				if(hst.debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst.name, getpid(), h->funct);
 				hmsg eh=new_hmsg("err", inp);
 				if(eh)
 				{
@@ -128,7 +104,6 @@ int main(int argc, char **argv)
 			}
 			free_hmsg(h);
 		}
-		free(inp);
 	}
 	hfin(EXIT_SUCCESS);
 	return(EXIT_SUCCESS);
