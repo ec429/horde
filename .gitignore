@@ -5,3 +5,4 @@ ext
 pico
 log
 *.o
+modules/
