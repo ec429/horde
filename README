@@ -17,7 +17,7 @@ The actual 'horde' process is the dispatcher, with the following functions:
 
 Every child process (with the exception of 'net') is a 'handler', which is registered with the dispatcher by an entry in the .horde file.
 The core handlers are:
-	net		Calls accept() on the listening socket, does protocol with HTTP.  Calls 'path', 'ext' and 'log', and 'proc' to obtain the entity body
+	net		Calls accept() on the listening socket, does protocol with HTTP.  Calls 'ext' and 'log', and 'proc' to obtain the entity body
 	proc	Loads a resource from disk, and applies appropriate preprocessing to it.  Calls appropriate preprocessor daemons
 	ext		Determines the Content-Type (MIMEtype) of a document based on its extension.  Is a daemon (rather than a libhorde function) in order to amortise the cost of reading in /etc/mime.types
 	log		Writes lines to the log file (/var/log/horde).  Exists to serialise these writes, obviating the need for locking
