@@ -21,7 +21,8 @@ The core handlers are:
 	proc	Loads a resource from disk, and applies appropriate preprocessing to it.  Calls appropriate preprocessor daemons
 	ext		Determines the Content-Type (MIMEtype) of a document based on its extension.  Is a daemon (rather than a libhorde function) in order to amortise the cost of reading in /etc/mime.types
 	log		Writes lines to the log file (/var/log/horde).  Exists to serialise these writes, obviating the need for locking
-	
+Other handlers go in the modules/ directory; any site-specific handlers go in modules/local/.
+
 The standard way of extending horde's capabilities is by registering processors with 'proc'; this is done by an entry in a .proc file; typically the name should be {modulename}.proc.
 One preprocessor is provided as an example of how the proc system works; it is called 'pico' and emulates the dynamic rewriting functions of the "httpico" webserver, an earlier (and somewhat unsuccessful) project by the same developer.  (The main reason for implementing 'pico' was that the author had used its features throughout his own website)
 

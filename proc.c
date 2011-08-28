@@ -14,11 +14,13 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include "bits.h"
 #include "libhorde.h"
 
 #define MAXBLOBLEN	(1<<16) // the maximum length of a file to send in-band unprocessed (instead of using 'read').  If any processing is needed, this is ignored
+#define CWD_BUF_SIZE	4096
 
 typedef struct
 {
@@ -28,12 +30,13 @@ typedef struct
 }
 processor;
 
-void handle(const char *inp, hstate *hst);
+int rcreaddir(const char *dn, hstate *hst);
+int rcread(const char *fn, hstate *hst);
+int handle(const char *inp, hstate *hst, bool rc);
 int add_processor(processor p);
 
 lvalue app(lform lf, lvars lv);
 
-bool debug, pipeline;
 unsigned int nprocs;
 processor *procs;
 
@@ -47,12 +50,104 @@ int main(int argc, char **argv)
 	hst.debug=false;
 	nprocs=0;
 	procs=NULL;
-	FILE *rc=fopen(".proc", "r");
+	char cwdbuf[CWD_BUF_SIZE];
+	if(!getcwd(cwdbuf, CWD_BUF_SIZE))
+	{
+		fprintf(stderr, "horde: %s[%d]: getcwd: %s\n", hst.name, getpid(), strerror(errno));
+		hfin(EXIT_FAILURE);
+		return(EXIT_FAILURE);
+	}
+	if(rcread("proc.rc", &hst))
+	{
+		fprintf(stderr, "horde: %s[%d]: bad rc, giving up\n", hst.name, getpid());
+		hfin(EXIT_FAILURE);
+		return(EXIT_FAILURE);
+	}
+	if(rcreaddir(cwdbuf, &hst))
+	{
+		fprintf(stderr, "horde: %s[%d]: bad rc, giving up\n", hst.name, getpid());
+		hfin(EXIT_FAILURE);
+		return(EXIT_FAILURE);
+	}
+	while(!hst.shutdown)
+	{
+		char *inp=getl(STDIN_FILENO);
+		if(!inp) break;
+		if(!*inp) {free(inp);continue;}
+		handle(inp, &hst, false);
+		free(inp);
+	}
+	hfin(EXIT_SUCCESS);
+	return(EXIT_SUCCESS);
+}
+
+int rcreaddir(const char *dn, hstate *hst)
+{
+	char olddir[CWD_BUF_SIZE];
+	if(!getcwd(olddir, CWD_BUF_SIZE))
+	{
+		fprintf(stderr, "horde: %s[%d]: getcwd: %s\n", hst->name, getpid(), strerror(errno));
+		return(1);
+	}
+	if(hst->debug) fprintf(stderr, "horde: %s[%d]: searching %s/%s for config files\n", hst->name, getpid(), olddir, dn);
+	if(chdir(dn))
+	{
+		if(hst->debug) fprintf(stderr, "horde: %s[%d]: failed to chdir(%s): %s\n", hst->name, getpid(), dn, strerror(errno));
+		return(1);
+	}
+	DIR *rcdir=opendir(".");
+	if(!rcdir)
+	{
+		fprintf(stderr, "horde: %s[%d]: failed to opendir %s: %s\n", hst->name, getpid(), dn, strerror(errno));
+		closedir(rcdir);
+		chdir(olddir);
+		return(1);
+	}
+	struct dirent *entry;
+	while((entry=readdir(rcdir)))
+	{
+		if(entry->d_name[0]=='.') continue;
+		struct stat st;
+		if(stat(entry->d_name, &st))
+		{
+			if(hst->debug) fprintf(stderr, "horde: %s[%d]: failed to stat %s: %s\n", hst->name, getpid(), entry->d_name, strerror(errno));
+			closedir(rcdir);
+			chdir(olddir);
+			return(1);
+		}
+		if(st.st_mode&S_IFDIR)
+		{
+			if(rcreaddir(entry->d_name, hst))
+			{
+				chdir(olddir);
+				return(1);
+			}
+		}
+		else if(strcmp(entry->d_name+strlen(entry->d_name)-5, ".proc")==0)
+		{
+			if(rcread(entry->d_name, hst))
+			{
+				closedir(rcdir);
+				chdir(olddir);
+				return(1);
+			}
+		}
+	}
+	if(hst->debug) fprintf(stderr, "horde: %s[%d]: done searching %s\n", hst->name, getpid(), dn);
+	closedir(rcdir);
+	chdir(olddir);
+	return(0);
+}
+
+int rcread(const char *fn, hstate *hst)
+{
+	FILE *rc=fopen(fn, "r");
 	if(rc)
 	{
-		//fprintf(stderr, "horde: %s[%d]: reading rc file '.proc'\n", hst.name, getpid());
+		if(hst->debug) fprintf(stderr, "horde: %s[%d]: reading rc file %s\n", hst->name, getpid(), fn);
 		char *line;
-		while((line=fgetl(rc)))
+		int e=0;
+		while((line=fgetl(rc))&&!e)
 		{
 			if(!*line)
 			{
@@ -76,30 +171,27 @@ int main(int argc, char **argv)
 				free(cont);
 				line=newl;
 			}
-			handle(line, &hst);
+			e=handle(line, hst, true);
 			free(line);
 		}
 		fclose(rc);
-		if(hst.debug) fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", hst.name, getpid());
+		if(e)
+		{
+			if(hst->debug) fprintf(stderr, "horde: %s[%d]: choked on rc file %s\n", hst->name, getpid(), fn);
+			return(e);
+		}
+		if(hst->debug) fprintf(stderr, "horde: %s[%d]: finished reading rc file\n", hst->name, getpid());
+		return(0);
 	}
-	/*else
-		fprintf(stderr, "horde: %s[%d]: failed to open rc file '.proc': fopen: %s\n", hst.name, getpid(), strerror(errno));*/
-	while(!hst.shutdown)
-	{
-		char *inp=getl(STDIN_FILENO);
-		if(!inp) break;
-		if(!*inp) {free(inp);continue;}
-		handle(inp, &hst);
-		free(inp);
-	}
-	hfin(EXIT_SUCCESS);
-	return(EXIT_SUCCESS);
+	fprintf(stderr, "horde: %s[%d]: failed to open rc file %s: fopen: %s\n", hst->name, getpid(), fn, strerror(errno));
+	return(1);
 }
 
-void handle(const char *inp, hstate *hst)
+int handle(const char *inp, hstate *hst, bool rc)
 {
 	hmsg h=hmsg_from_str(inp, true);
-	if(hmsg_state(h, hst)) return;
+	if(hmsg_state(h, hst)) return(0);
+	int e=0;
 	if(h)
 	{
 		const char *from=gettag(h, "from");
@@ -188,6 +280,12 @@ void handle(const char *inp, hstate *hst)
 		}
 		else if(strcmp(h->funct, "proc")==0)
 		{
+			if(rc)
+			{
+				fprintf(stderr, "horde: %s[%d]: (proc) in rc file\n", hst->name, getpid());
+				free_hmsg(h);
+				return(1);
+			}
 			if(strstr(h->data, "/../"))
 			{
 				hmsg r=new_hmsg("err", NULL);
@@ -453,7 +551,7 @@ void handle(const char *inp, hstate *hst)
 														free_hmsg(eh);
 													}
 													hst->shutdown=true;
-													return;
+													return(1);
 												}
 												free_hmsg(h2);
 											}
@@ -566,7 +664,7 @@ void handle(const char *inp, hstate *hst)
 																free_hmsg(eh);
 															}
 															hst->shutdown=true;
-															return;
+															return(1);
 														}
 														free_hmsg(h2);
 													}
@@ -626,18 +724,25 @@ void handle(const char *inp, hstate *hst)
 		else
 		{
 			if(hst->debug) fprintf(stderr, "horde: %s[%d]: unrecognised funct '%s'\n", hst->name, getpid(), h->funct);
-			hmsg eh=new_hmsg("err", inp);
-			if(eh)
+			if(!rc)
 			{
-				add_htag(eh, "what", "unrecognised-funct");
-				if(from) add_htag(eh, "to", from);
-				hsend(1, eh);
-				free_hmsg(eh);
+				hmsg eh=new_hmsg("err", inp);
+				if(eh)
+				{
+					add_htag(eh, "what", "unrecognised-funct");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
 			}
+			e=1;
 		}
 		free_hmsg(h);
+		return(e);
 	}
-	return;
+	if(hst->debug)
+		fprintf(stderr, "horde: %s[%d]: malformed message%s: %s\n", hst->name, getpid(), rc?" in rc file":"", inp);
+	return(1);
 }
 
 int add_processor(processor p)

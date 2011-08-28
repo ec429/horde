@@ -2,7 +2,7 @@ horde
 net
 proc
 ext
-pico
 log
 *.o
-modules/
+modules/pico/pico
+modules/local

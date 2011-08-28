@@ -211,9 +211,24 @@ int main(int argc, char **argv)
 	}
 	nhandlers=0;
 	handlers=NULL;
-	if(rcreaddir(confdir))
+	if(chdir(confdir))
+	{
+		perror("horde: chdir");
+		return(EXIT_FAILURE);
+	}
+	if(rcread("horde.rc"))
 	{
 		fprintf(stderr, "horde: bad rc, giving up\n");
+		return(EXIT_FAILURE);
+	}
+	if(rcreaddir("."))
+	{
+		fprintf(stderr, "horde: bad rc, giving up\n");
+		return(EXIT_FAILURE);
+	}
+	if(chdir(cwdbuf))
+	{
+		perror("horde: chdir");
 		return(EXIT_FAILURE);
 	}
 	fprintf(stderr, "horde: setting signal handlers\n");
