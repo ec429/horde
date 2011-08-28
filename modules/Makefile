@@ -1,5 +1,5 @@
 # Makefile for horde modules
-MODULES := pico
+MODULES := pico core
 
 all: $(MODULES)
 

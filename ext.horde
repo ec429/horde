@@ -1,4 +1,0 @@
-(add \
-	(name ext) \
-	(prog ./ext) \
-	)

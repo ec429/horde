@@ -2,26 +2,23 @@
 CC := gcc
 CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g
 
-all: horde net proc ext log modules
+LIBS := libhorde.o bits.o
+INCLUDES := libhorde.h bits.h
 
-horde: horde.c libhorde.o libhorde.h bits.o bits.h
-	$(CC) $(CFLAGS) -o $@ horde.c libhorde.o bits.o
+all: horde net proc modules
 
-net: net.c libhorde.o libhorde.h http.h bits.o bits.h
-	$(CC) $(CFLAGS) -o $@ net.c libhorde.o bits.o
+horde: horde.c $(INCLUDES) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ horde.c $(LIBS)
 
-proc: proc.c libhorde.o libhorde.h bits.o bits.h
-	$(CC) $(CFLAGS) -o $@ proc.c libhorde.o bits.o
+net: net.c $(INCLUDES) $(LIBS) http.h
+	$(CC) $(CFLAGS) -o $@ net.c $(LIBS)
 
-ext: ext.c libhorde.o libhorde.h bits.o bits.h
-	$(CC) $(CFLAGS) -o $@ ext.c libhorde.o bits.o
-
-log: log.c libhorde.o libhorde.h bits.o bits.h
-	$(CC) $(CFLAGS) -o $@ log.c libhorde.o bits.o
+proc: proc.c $(INCLUDES) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ proc.c $(LIBS)
 
 .PHONY: modules
 
-modules: libhorde.o libhorde.h bits.o bits.h
+modules: $(INCLUDES) $(LIBS)
 	$(MAKE) -C modules
 
 libhorde.o: libhorde.c libhorde.h http.h bits.h

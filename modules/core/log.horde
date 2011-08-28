@@ -1,5 +1,5 @@
 (add \
 	(name log) \
-	(prog ./log) \
+	(prog modules/core/log) \
 	(only) \
 	)
