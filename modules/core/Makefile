@@ -14,3 +14,6 @@ ext: ext.c $(INCLUDES) $(LIBS)
 log: log.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ log.c $(LIBS)
 
+.PHONY: clean
+clean:
+	-rm ext log

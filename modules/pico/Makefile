@@ -10,3 +10,7 @@ all: pico
 
 pico: pico.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ pico.c $(LIBS)
+
+.PHONY: clean
+clean:
+	-rm pico

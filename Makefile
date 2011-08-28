@@ -16,10 +16,15 @@ net: net.c $(INCLUDES) $(LIBS) http.h
 proc: proc.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ proc.c $(LIBS)
 
-.PHONY: modules
+.PHONY: modules clean
 
 modules: $(INCLUDES) $(LIBS)
 	$(MAKE) -C modules
+
+clean:
+	-rm $(LIBS) horde net proc
+	$(MAKE) -C modules clean
+
 
 libhorde.o: libhorde.c libhorde.h http.h bits.h
 
