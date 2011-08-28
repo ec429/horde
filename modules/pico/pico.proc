@@ -1,5 +1,5 @@
 (add \
-	(rule [or [= [ext]["pico"]] [and [= [subst [0][5][ctype]]["text/"]] [grep [str [body]]["<?pico"]]]]) \
+	(rule [or [= [ext]["pico"]] [and [grep ["htm"][ext]] [grep ["<?pico"][str [body]]]]]) \
 	(proc pico) \
-	(onfail passthru) \
+	(onfail 500) \
 	)

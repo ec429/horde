@@ -17,7 +17,7 @@
 #include "bits.h"
 #include "libhorde.h"
 
-#define PICO_VER	"0.0.1"
+#define PICO_VER	"0.0.2"
 
 void handle(const char *inp, hstate *hst);
 char *picofy(const hmsg h, const hstate *hst);
@@ -102,12 +102,16 @@ void handle(const char *inp, hstate *hst)
 			else
 			{
 				char *resp=picofy(h, hst);
-				hmsg r=new_hmsg("pico", resp);
-				free(resp);
-				if(from) add_htag(r, "to", from);
-				add_htag(r, "server", "pico "PICO_VER);
-				hsend(1, r);
-				free_hmsg(r);
+				free(h->data);
+				h->data=resp;
+				h->dlen=strlen(resp);
+				for(unsigned int i=0;i<h->nparms;i++)
+				{
+					if(strcmp(h->p_tag[i], "from")==0)
+						strcpy(h->p_tag[i], "to");
+				}
+				add_htag(h, "server", "pico "PICO_VER);
+				hsend(1, h);
 			}
 			if(hst->pipeline)
 			{
