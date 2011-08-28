@@ -19,11 +19,10 @@ Every child process (with the exception of 'net') is a 'handler', which is regis
 The core handlers are:
 	net		Calls accept() on the listening socket, does protocol with HTTP.  Calls 'path', 'ext' and 'log', and 'proc' to obtain the entity body
 	proc	Loads a resource from disk, and applies appropriate preprocessing to it.  Calls appropriate preprocessor daemons
-	path	Performs path normalisation.  Since the core function (normalise_path()) is part of libhorde, path is *deprecated* and will be removed in a later version
 	ext		Determines the Content-Type (MIMEtype) of a document based on its extension.  Is a daemon (rather than a libhorde function) in order to amortise the cost of reading in /etc/mime.types
 	log		Writes lines to the log file (/var/log/horde).  Exists to serialise these writes, obviating the need for locking
 	
-The standard way of extending horde's capabilities is by registering processors with 'proc'; this is done by an entry in the .proc file.
+The standard way of extending horde's capabilities is by registering processors with 'proc'; this is done by an entry in a .proc file; typically the name should be {modulename}.proc.
 One preprocessor is provided as an example of how the proc system works; it is called 'pico' and emulates the dynamic rewriting functions of the "httpico" webserver, an earlier (and somewhat unsuccessful) project by the same developer.  (The main reason for implementing 'pico' was that the author had used its features throughout his own website)
 
 Good things to note: because all the preprocessor daemons communicate only through textual IPC (using a simple RPC protocol), they can be implemented in a wide variety of languages, although it helps if you have a binding for the hmsg-related libhorde functions.
@@ -56,9 +55,7 @@ Plans:
 ------
 TODO: cull excessive idle workers.
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
-TODO: instead of putting all the horde and proc knowledge into single '.horde' and '.proc' files, search for '*.horde' and '*.proc' files and read them all.  Thus, pico will have a 'pico.horde' (add (name pico) (prog ./pico) (stdinit)) and a 'pico.proc' (add (rule [or [= [ext]["pico"]] [and [= [subst [0][5][ctype]]["text/"]] [grep [str [body]]["<?pico"]]]]) (proc pico) (onfail passthru)).  This allows modules to be installed automatically
 TODO: make proc pay attention to the (onfail) attribute
-TODO: allow '.horde'-style handler registration at runtime by providing a similar entry on the dispatcher's standard input
 TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream
 TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)

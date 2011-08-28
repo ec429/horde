@@ -1,0 +1,5 @@
+(add \
+	(name log) \
+	(prog ./log) \
+	(only) \
+	)

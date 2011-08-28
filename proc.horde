@@ -1,0 +1,5 @@
+(add \
+	(name proc) \
+	(prog ./proc) \
+	(stdinit) \
+	)

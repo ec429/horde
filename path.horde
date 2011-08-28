@@ -1,0 +1,4 @@
+(add \
+	(name path) \
+	(prog ./path) \
+	)

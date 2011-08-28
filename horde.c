@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <dirent.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -36,6 +37,8 @@
 
 #include "bits.h"
 #include "libhorde.h"
+
+#define CWD_BUF_SIZE	4096
 
 typedef struct
 {
@@ -54,7 +57,7 @@ worker;
 
 typedef struct
 {
-	const char *name, *prog;
+	char *name, *prog;
 	unsigned int n_init;
 	hmsg *init;
 	bool only; // only run one instance of this worker?
@@ -68,6 +71,13 @@ pid_t do_fork(const char *prog, const char *name, int rfd, unsigned int *w);
 signed int find_worker(const char *name, bool creat, int *fdmax, fd_set *fds);
 int add_handler(handler new);
 
+int rcreaddir(const char *dn);
+int rcread(const char *fn);
+
+int handle(const char *inp, const char *file);
+int handle_add(const hmsg h);
+int handle_workers(hmsg h);
+
 unsigned int nworkers;
 worker *workers;
 unsigned int nhandlers;
@@ -76,10 +86,18 @@ handler *handlers;
 bool debug, pipeline;
 const char *root;
 size_t maxbytesdaily, bytestoday;
+unsigned long net_micro, net_rqs;
 
 int main(int argc, char **argv)
 {
 	unsigned short port=8000; // incoming port number
+	char cwdbuf[CWD_BUF_SIZE];
+	const char *confdir=getcwd(cwdbuf, CWD_BUF_SIZE); // location of config files
+	if(!confdir)
+	{
+		perror("horde: getcwd");
+		return(EXIT_FAILURE);
+	}
 	root="root"; // virtual root
 	uid_t realuid=65534; // less-privileged uid, default 'nobody'
 	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
@@ -93,6 +111,8 @@ int main(int argc, char **argv)
 		const char *varg=argv[arg];
 		if(strncmp(varg, "--port=", 7)==0)
 			sscanf(varg+7, "%hu", &port);
+		else if(strncmp(varg, "--conf=", 7)==0)
+			confdir=varg+7;
 		else if(strncmp(varg, "--root=", 7)==0)
 			root=varg+7;
 		else if(strncmp(varg, "--uid=", 6)==0)
@@ -191,100 +211,11 @@ int main(int argc, char **argv)
 	}
 	nhandlers=0;
 	handlers=NULL;
-	FILE *rc=fopen(".horde", "r");
-	if(rc)
+	if(rcreaddir(confdir))
 	{
-		if(debug) fprintf(stderr, "horde: reading rc file '.horde'\n");
-		char *line;
-		while((line=fgetl(rc)))
-		{
-			if(!*line)
-			{
-				free(line);
-				if(feof(rc)) break;
-				continue;
-			}
-			size_t end;
-			while(line[(end=strlen(line))-1]=='\\')
-			{
-				line[end-1]=0;
-				char *cont=fgetl(rc);
-				if(!cont) break;
-				char *newl=realloc(line, strlen(line)+strlen(cont)+1);
-				if(!newl)
-				{
-					free(cont);
-					break;
-				}
-				strcat(newl, cont);
-				free(cont);
-				line=newl;
-			}
-			hmsg h=hmsg_from_str(line, true);
-			if(h)
-			{
-				if(strcmp(h->funct, "add")==0)
-				{
-					handler newh=(handler){.name=NULL, .prog=NULL, .n_init=0, .init=NULL, .only=false};
-					unsigned int i;
-					for(i=0;i<h->nparms;i++)
-					{
-						if(strcmp(h->p_tag[i], "name")==0)
-						{
-							newh.name=h->p_value[i];
-						}
-						else if(strcmp(h->p_tag[i], "prog")==0)
-						{
-							newh.prog=h->p_value[i];
-						}
-						else if(strcmp(h->p_tag[i], "only")==0)
-						{
-							newh.only=true;
-						}
-						else if(strcmp(h->p_tag[i], "stdinit")==0)
-						{
-							if(!newh.n_init)
-							{
-								newh.init=malloc((newh.n_init=(pipeline?2:1))*sizeof(hmsg));
-								if(!newh.init)
-								{
-									fprintf(stderr, "horde: allocation failure (newh.init): malloc: %s\n", strerror(errno));
-									return(EXIT_FAILURE);
-								}
-								newh.init[0]=new_hmsg("root", root);
-								if(!newh.init[0])
-								{
-									fprintf(stderr, "horde: allocation failure (newh.init[0]): new_hmsg: %s\n", strerror(errno));
-									return(EXIT_FAILURE);
-								}
-								if(pipeline)
-								{
-									newh.init[1]=new_hmsg("pipeline", NULL);
-									if(!newh.init[1])
-									{
-										fprintf(stderr, "horde: allocation failure (newh.init[1]): new_hmsg: %s\n", strerror(errno));
-										return(EXIT_FAILURE);
-									}
-								}
-							}
-						}
-					}
-					if(add_handler(newh)<0)
-					{
-						fprintf(stderr, "horde: add_handler() failed\n");
-						return(EXIT_FAILURE);
-					}
-				}
-			}
-			else if(debug)
-				fprintf(stderr, "horde: bad line in rc file: %s\n", line);
-			free(line);
-		}
-		fclose(rc);
-		if(debug) fprintf(stderr, "horde: finished reading rc file\n");
+		fprintf(stderr, "horde: bad rc, giving up\n");
+		return(EXIT_FAILURE);
 	}
-	else
-		fprintf(stderr, "horde: failed to open rc file '.horde': fopen: %s\n", strerror(errno));
 	fprintf(stderr, "horde: setting signal handlers\n");
 	if(signal(SIGPIPE, SIG_IGN)==SIG_ERR)
 		perror("horde: failed to set SIGPIPE handler: signal");
@@ -295,8 +226,8 @@ int main(int argc, char **argv)
 	char *input; unsigned int inpl, inpi;
 	init_char(&input, &inpl, &inpi);
 	time_t shuttime=0;
-	unsigned long net_micro=0;
-	unsigned int net_rqs=0;
+	net_micro=0;
+	net_rqs=0;
 	int errupt=0;
 	while(!errupt)
 	{
@@ -360,48 +291,18 @@ int main(int argc, char **argv)
 								else
 									break;
 							}
-							hmsg ih=hmsg_from_str(input, true);
-							if(ih)
+							if(handle(input, NULL)==2)
 							{
-								if(strcmp(ih->funct, "shutdown")==0)
+								fprintf(stderr, "horde: shutting down (requested on stdin)\n");
+								hmsg sh=new_hmsg("shutdown", NULL);
+								unsigned int w;
+								for(w=0;w<nworkers;w++)
 								{
-									// TODO: check parameters
-									fprintf(stderr, "horde: shutting down (requested on stdin)\n");
-									hmsg sh=new_hmsg("shutdown", NULL);
-									unsigned int w;
-									for(w=0;w<nworkers;w++)
-									{
-										workers[w].autoreplace=false;
-										if(workers[w].pid>0)
-											hsend(workers[w].pipe[1], sh);
-									}
-									shuttime=time(NULL)+8;
+									workers[w].autoreplace=false;
+									if(workers[w].pid>0)
+										hsend(workers[w].pipe[1], sh);
 								}
-								else if(strcmp(ih->funct, "workers")==0)
-								{
-									fprintf(stderr, "horde: workers (%u)\n", nworkers);
-									unsigned int w;
-									for(w=0;w<nworkers;w++)
-									{
-										char name[13];
-										memset(name, ' ', 12);
-										name[12]=0;
-										memcpy(name, workers[w].name, strlen(workers[w].name));
-										unsigned int m=workers[w].n_rqs?workers[w].t_micro*1e-3/workers[w].n_rqs:0;
-										fprintf(stderr, "horde:\t%s%.12s[%05u]%s:: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].n_rqs, m);
-									}
-									unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
-									fprintf(stderr, "horde:\t net         [     ] :: %u rq, mean %03ums\n", net_rqs, m);
-								}
-								else
-								{
-									fprintf(stderr, "horde: unrecognised cmd '%s'\n", ih->funct);
-								}
-								free_hmsg(ih);
-							}
-							else
-							{
-								fprintf(stderr, "horde: failed to parse input '%s'\n", input);
+								shuttime=time(NULL)+8;
 							}
 							free(input);
 							init_char(&input, &inpl, &inpi);
@@ -584,18 +485,248 @@ int main(int argc, char **argv)
 	return(EXIT_SUCCESS);
 }
 
+int rcreaddir(const char *dn)
+{
+	char olddir[CWD_BUF_SIZE];
+	if(!getcwd(olddir, CWD_BUF_SIZE))
+	{
+		perror("horde: getcwd");
+		return(1);
+	}
+	if(debug) fprintf(stderr, "horde: searching %s/%s for config files\n", olddir, dn);
+	if(chdir(dn))
+	{
+		if(debug) fprintf(stderr, "horde: failed to chdir(%s): %s\n", dn, strerror(errno));
+		return(1);
+	}
+	DIR *rcdir=opendir(".");
+	if(!rcdir)
+	{
+		fprintf(stderr, "horde: failed to opendir %s: %s\n", dn, strerror(errno));
+		closedir(rcdir);
+		chdir(olddir);
+		return(1);
+	}
+	struct dirent *entry;
+	while((entry=readdir(rcdir)))
+	{
+		if(entry->d_name[0]=='.') continue;
+		struct stat st;
+		if(stat(entry->d_name, &st))
+		{
+			if(debug) fprintf(stderr, "horde: failed to stat %s: %s\n", entry->d_name, strerror(errno));
+			closedir(rcdir);
+			chdir(olddir);
+			return(1);
+		}
+		if(st.st_mode&S_IFDIR)
+		{
+			if(rcreaddir(entry->d_name))
+			{
+				chdir(olddir);
+				return(1);
+			}
+		}
+		else if(strcmp(entry->d_name+strlen(entry->d_name)-6, ".horde")==0)
+		{
+			if(rcread(entry->d_name))
+			{
+				closedir(rcdir);
+				chdir(olddir);
+				return(1);
+			}
+		}
+	}
+	if(debug) fprintf(stderr, "horde: done searching %s\n", dn);
+	closedir(rcdir);
+	chdir(olddir);
+	return(0);
+}
+
+int rcread(const char *fn)
+{
+	FILE *rc=fopen(fn, "r");
+	if(rc)
+	{
+		if(debug) fprintf(stderr, "horde: reading rc file '%s'\n", fn);
+		char *line;
+		int e=0;
+		while((line=fgetl(rc))&&!e)
+		{
+			if(!*line)
+			{
+				free(line);
+				if(feof(rc)) break;
+				continue;
+			}
+			size_t end;
+			while(line[(end=strlen(line))-1]=='\\')
+			{
+				line[end-1]=0;
+				char *cont=fgetl(rc);
+				if(!cont) break;
+				char *newl=realloc(line, strlen(line)+strlen(cont)+1);
+				if(!newl)
+				{
+					free(cont);
+					break;
+				}
+				strcat(newl, cont);
+				free(cont);
+				line=newl;
+			}
+			e=handle(line, fn);
+			free(line);
+		}
+		fclose(rc);
+		if(e)
+		{
+			if(debug) fprintf(stderr, "horde: choked on rc file %s\n", fn);
+			return(e);
+		}
+		if(debug) fprintf(stderr, "horde: finished reading rc file\n");
+		return(0);
+	}
+	fprintf(stderr, "horde: failed to open rc file '%s': fopen: %s\n", fn, strerror(errno));
+	return(1);
+}
+
+int handle(const char *inp, const char *file)
+{
+	int e=0;
+	hmsg h=hmsg_from_str(inp, true);
+	if(h)
+	{
+		if(strcmp(h->funct, "add")==0)
+			e=handle_add(h);
+		else if(strcmp(h->funct, "workers")==0)
+		{
+			e=handle_workers(h);
+		}
+		else if(strcmp(h->funct, "shutdown")==0)
+		{
+			if(debug) fprintf(stderr, "horde: server is shutting down\n");
+			e=2;
+		}
+		else if(strcmp(h->funct, "debug")==0)
+		{
+			if(h->data)
+			{
+				if(strcmp(h->data, "true")==0)
+					debug=true;
+				else if(strcmp(h->data, "false")==0)
+					debug=false;
+			}
+			else
+				debug=true;
+			e=0;
+		}
+		else if(strcmp(h->funct, "pipeline")==0)
+		{
+			if(h->data)
+			{
+				if(strcmp(h->data, "true")==0)
+					pipeline=true;
+				else if(strcmp(h->data, "false")==0)
+					pipeline=false;
+			}
+			else
+				pipeline=true;
+			e=0;
+		}
+		else
+		{
+			fprintf(stderr, "horde: unrecognised cmd %s\n", h->funct);
+			e=1;
+		}
+		free_hmsg(h);
+		return(e);
+	}
+	if(debug)
+		fprintf(stderr, "horde: malformed message in %s: %s\n", file?file:"stdin", inp);
+	return(1);
+}
+
+int handle_add(const hmsg h)
+{
+	handler newh=(handler){.name=NULL, .prog=NULL, .n_init=0, .init=NULL, .only=false};
+	unsigned int i;
+	for(i=0;i<h->nparms;i++)
+	{
+		if(strcmp(h->p_tag[i], "name")==0)
+		{
+			free(newh.name);
+			newh.name=strdup(h->p_value[i]);
+		}
+		else if(strcmp(h->p_tag[i], "prog")==0)
+		{
+			free(newh.prog);
+			newh.prog=strdup(h->p_value[i]);
+		}
+		else if(strcmp(h->p_tag[i], "only")==0)
+		{
+			newh.only=true;
+		}
+		else if(strcmp(h->p_tag[i], "stdinit")==0)
+		{
+			if(!newh.n_init)
+			{
+				newh.init=malloc((newh.n_init=(pipeline?2:1))*sizeof(hmsg));
+				if(!newh.init)
+				{
+					fprintf(stderr, "horde: allocation failure (newh.init): malloc: %s\n", strerror(errno));
+					return(1);
+				}
+				newh.init[0]=new_hmsg("root", root);
+				if(!newh.init[0])
+				{
+					fprintf(stderr, "horde: allocation failure (newh.init[0]): new_hmsg: %s\n", strerror(errno));
+					return(1);
+				}
+				if(pipeline)
+				{
+					newh.init[1]=new_hmsg("pipeline", NULL);
+					if(!newh.init[1])
+					{
+						fprintf(stderr, "horde: allocation failure (newh.init[1]): new_hmsg: %s\n", strerror(errno));
+						return(1);
+					}
+				}
+			}
+		}
+	}
+	if(add_handler(newh)<0)
+	{
+		fprintf(stderr, "horde: add_handler() failed\n");
+		free(newh.name);
+		free(newh.prog);
+		return(1);
+	}
+	if(debug)
+		fprintf(stderr, "horde: added handler for %s\n", newh.name);
+	return(0);
+}
+
+int handle_workers(__attribute__((unused)) hmsg h)
+{
+	fprintf(stderr, "horde: workers (%u)\n", nworkers);
+	unsigned int w;
+	for(w=0;w<nworkers;w++)
+	{
+		char name[13];
+		memset(name, ' ', 12);
+		name[12]=0;
+		memcpy(name, workers[w].name, strlen(workers[w].name));
+		unsigned int m=workers[w].n_rqs?workers[w].t_micro*1e-3/workers[w].n_rqs:0;
+		fprintf(stderr, "horde:\t%s%.12s[%05u]%s:: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].n_rqs, m);
+	}
+	unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
+	fprintf(stderr, "horde:\t net         [     ] :: %lu rq, mean %03ums\n", net_rqs, m);
+	return(0);
+}
+
 int addworker(worker new)
 {
-	if(!nworkers)
-	{
-		fprintf(stderr, "horde: addworker: nworkers==NULL\n");
-		return(-1);
-	}
-	if(!workers)
-	{
-		fprintf(stderr, "horde: addworker: workers==NULL\n");
-		return(-1);
-	}
 	unsigned int nw=nworkers++;
 	worker *new_w=realloc(workers, nworkers*sizeof(*workers));
 	if(!new_w)
