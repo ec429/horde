@@ -83,7 +83,7 @@ worker *workers;
 unsigned int nhandlers;
 handler *handlers;
 
-bool debug, pipeline;
+bool debug, pipeline, transcript;
 const char *root;
 size_t maxbytesdaily, bytestoday;
 unsigned long net_micro, net_rqs;
@@ -104,6 +104,7 @@ int main(int argc, char **argv)
 	maxbytesdaily=1<<29; // daily bandwidth limiter, default 0.5GB
 	bytestoday=0;
 	debug=false; // write debugging info to stderr?
+	transcript=false; // write extra info?
 	pipeline=true; // run daemons in pipelined mode? (generally preferred for efficiency reasons; however debugging may be easier in single-invoke mode)
 	int arg;
 	for(arg=1;arg<argc;arg++)
@@ -125,6 +126,10 @@ int main(int argc, char **argv)
 			debug=true;
 		else if(strcmp(varg, "--no-debug")==0)
 			debug=false;
+		else if(strcmp(varg, "--transcript")==0)
+			transcript=true;
+		else if(strcmp(varg, "--no-transcript")==0)
+			transcript=false;
 		else if(strcmp(varg, "--pipe")==0)
 			pipeline=true;
 		else if(strcmp(varg, "--no-pipe")==0)
@@ -343,11 +348,11 @@ int main(int argc, char **argv)
 							}
 						break;
 						case NONE:;
-							//fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
+							if(transcript) fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
 							if(*buf)
 							{
-								//fprintf(stderr, "horde: < '%s'\n", buf);
+								if(transcript) fprintf(stderr, "horde: < '%s'\n", buf);
 								hmsg h=hmsg_from_str(buf, false);
 								if(h)
 								{
@@ -634,6 +639,19 @@ int handle(const char *inp, const char *file)
 			}
 			else
 				debug=true;
+			e=0;
+		}
+		else if(strcmp(h->funct, "transcript")==0)
+		{
+			if(h->data)
+			{
+				if(strcmp(h->data, "true")==0)
+					transcript=true;
+				else if(strcmp(h->data, "false")==0)
+					transcript=false;
+			}
+			else
+				transcript=true;
 			e=0;
 		}
 		else if(strcmp(h->funct, "pipeline")==0)

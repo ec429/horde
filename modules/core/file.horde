@@ -1,0 +1,5 @@
+(add \
+	(name file) \
+	(prog modules/core/file) \
+	(only) \
+	)

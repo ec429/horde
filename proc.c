@@ -25,8 +25,8 @@
 typedef struct
 {
 	lform rule;
-	hmsg functor;
-	enum {P_THRU, P_404} onfail;
+	char *functor;
+	enum {P_THRU, P_404, P_500} onfail;
 }
 processor;
 
@@ -258,11 +258,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 				else if(strcmp(h->p_tag[i], "proc")==0)
 				{
 					if(!newp.functor)
-					{
-						hmsg nf=new_hmsg(h->p_value[i], NULL);
-						if(nf)
-							newp.functor=nf;
-					}
+						newp.functor=strdup(h->p_value[i]);
 				}
 				else if(strcmp(h->p_tag[i], "onfail")==0)
 				{
@@ -273,6 +269,10 @@ int handle(const char *inp, hstate *hst, bool rc)
 					else if(strcmp(h->p_value[i], "404")==0)
 					{
 						newp.onfail=P_404;
+					}
+					else if(strcmp(h->p_value[i], "500")==0)
+					{
+						newp.onfail=P_500;
 					}
 				}
 			}
@@ -491,9 +491,12 @@ int handle(const char *inp, hstate *hst, bool rc)
 						else
 						{
 							char *content_type=NULL;
-							char *ext=h->data, *last=NULL;
-							while((ext=strchr(ext, '.'))) last=ext++;
-							if((ext=last))
+							char *ext=strrchr(h->data, '.');
+							if(ext&&strchr(ext, '/'))
+							{
+								ext=NULL;
+							}
+							if(ext)
 							{
 								if(hst->debug) fprintf(stderr, "horde: %s[%d]: sending request to ext\n", hst->name, getpid());
 								hmsg ex=new_hmsg("ext", ext+1);
@@ -507,7 +510,6 @@ int handle(const char *inp, hstate *hst, bool rc)
 									{
 										if(!*inp2)
 										{
-											content_type=strdup("text/plain");
 											exed=true;
 										}
 										else
@@ -515,7 +517,8 @@ int handle(const char *inp, hstate *hst, bool rc)
 											hmsg h2=hmsg_from_str(inp2, true);
 											if(h2)
 											{
-												if(strcmp(h2->funct, "ext")==0)
+												if(hmsg_state(h2, hst));
+												else if(strcmp(h2->funct, "ext")==0)
 												{
 													if(h2->data)
 													{
@@ -560,14 +563,9 @@ int handle(const char *inp, hstate *hst, bool rc)
 									}
 									else
 									{
-										content_type=strdup("text/plain");
 										exed=true;
 									}
 								}
-							}
-							if(!content_type)
-							{
-								content_type=strdup("text/plain");
 							}
 							bool processed=false;
 							char *buf;
@@ -584,11 +582,26 @@ int handle(const char *inp, hstate *hst, bool rc)
 							else
 							{
 								lvars lv=NOVARS;
-								if(ext) l_addvar(&lv, "ext", l_str(ext+1));
-								l_addvar(&lv, "ctype", l_str(content_type));
+								l_addvar(&lv, "ext", l_str(ext?ext+1:""));
+								l_addvar(&lv, "ctype", l_str(content_type?content_type:""));
 								l_addvar(&lv, "body", l_blo(buf, length));
 								hmsg r=new_hmsg_d("proc", buf, length);
 								free(buf);
+								if(content_type)
+								{
+									char *hctype=malloc(16+strlen(content_type)+16);
+									if(hctype)
+									{
+										sprintf(hctype, "Content-Type: %s; charset=UTF-8", content_type);
+										add_htag(h, "header", hctype);
+										free(hctype);
+									}
+								}
+								for(unsigned int i=0;i<h->nparms;i++)
+								{
+									if((strcmp(h->p_tag[i], "from")!=0)&&(strcmp(h->p_tag[i], "to")!=0))
+										add_htag(r, h->p_tag[i], h->p_value[i]);
+								}
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
@@ -596,11 +609,11 @@ int handle(const char *inp, hstate *hst, bool rc)
 									//if(hst->debug) fprintf(stderr, "horde: %s[%d]: processor %u: %s\n", hst->name, getpid(), proc, l_asbool(apply)?"match":"nomatch");
 									if(l_asbool(apply))
 									{
-										hmsg fh=new_hmsg_d(procs[proc].functor->funct, r->data, r->dlen);
-										for(unsigned int i=0;i<h->nparms;i++)
+										hmsg fh=new_hmsg_d(procs[proc].functor, r->data, r->dlen);
+										for(unsigned int i=0;i<r->nparms;i++)
 										{
-											if(strcmp(h->p_tag[i], "from")!=0)
-												add_htag(fh, h->p_tag[i], h->p_value[i]);
+											if((strcmp(r->p_tag[i], "from")!=0)&&(strcmp(r->p_tag[i], "to")!=0))
+												add_htag(fh, r->p_tag[i], r->p_value[i]);
 										}
 										hsend(1, fh);
 										free_hmsg(fh);
@@ -616,7 +629,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 													hmsg h2=hmsg_from_str(resp, true);
 													if(h2)
 													{
-														if(strcmp(h2->funct, procs[proc].functor->funct)==0)
+														if(strcmp(h2->funct, procs[proc].functor)==0)
 														{
 															if(h2->data)
 															{
@@ -640,7 +653,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 														{
 															if(hst->debug)
 															{
-																fprintf(stderr, "horde: %s[%d]: %s failed: %s\n", hst->name, getpid(), procs[proc].functor->funct, h2->funct);
+																fprintf(stderr, "horde: %s[%d]: %s failed: %s\n", hst->name, getpid(), procs[proc].functor, h2->funct);
 																unsigned int i;
 																for(i=0;i<h2->nparms;i++)
 																{
@@ -657,7 +670,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 															{
 																add_htag(eh, "what", "chld-failure");
 																add_htag(eh, "fatal", NULL);
-																add_htag(eh, "chld", procs[proc].functor->funct);
+																add_htag(eh, "chld", procs[proc].functor);
 																add_htag(eh, "err", resp);
 																if(from) add_htag(eh, "to", from);
 																hsend(1, eh);
@@ -676,20 +689,12 @@ int handle(const char *inp, hstate *hst, bool rc)
 									free_lvalue(apply);
 								}
 								free_lvars(&lv);
-								char st[TL_SHORT];
-								hputshort(st, status);
-								add_htag(r, "status", st);
-								add_htag(r, "statusmsg", statusmsg);
-								if(content_type)
+								if(!gettag(r, "status"))
 								{
-									char *ctype=malloc(16+strlen(content_type)+16);
-									if(ctype)
-									{
-										sprintf(ctype, "Content-Type: %s; charset=UTF-8", content_type);
-										add_htag(r, "header", ctype);
-										free(ctype);
-									}
-									free(content_type);
+									char st[TL_SHORT];
+									hputshort(st, status);
+									add_htag(r, "status", st);
+									add_htag(r, "statusmsg", statusmsg);
 								}
 								if(from) add_htag(r, "to", from);
 								if(!processed)

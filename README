@@ -57,7 +57,6 @@ Plans:
 TODO: cull excessive idle workers.
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
 TODO: make proc pay attention to the (onfail) attribute
-TODO: make 'ext' use filemagic (if compiled in) if a file has no extension.  This should prevent unpleasantness like text files being served as application/octet-stream
 TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
 

@@ -742,6 +742,18 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		}
 		return(l_num(0));
 	}
+	else if(strcmp(lf->funct, "not")==0)
+	{
+		if(lf->nchld==1)
+		{
+			lvalue res=l_eval(&lf->chld[0], lv, app);
+			bool b=l_asbool(res);
+			free_lvalue(res);
+			if(!b)
+				return(l_num(-1));
+		}
+		return(l_num(0));
+	}
 	else if(strcmp(lf->funct, "grep")==0)
 	{
 		if(!lf->nchld) return(l_str(NULL));
@@ -751,7 +763,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_ICASE)) {free_lvalue(pattern); return(l_str(NULL));}
 		free_lvalue(pattern);
 		unsigned int chld;
-		for(chld=0;chld<lf->nchld;chld++)
+		for(chld=1;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], lv, app);
 			if(res.type!=L_STR) continue;
@@ -775,7 +787,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED|REG_ICASE)) {free_lvalue(pattern); return(l_str(NULL));}
 		free_lvalue(pattern);
 		unsigned int chld;
-		for(chld=0;chld<lf->nchld;chld++)
+		for(chld=1;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], lv, app);
 			if(res.type!=L_STR) continue;
@@ -799,7 +811,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		if(regcomp(&reg, pattern.data.str, REG_NOSUB)) {free_lvalue(pattern); return(l_str(NULL));}
 		free_lvalue(pattern);
 		unsigned int chld;
-		for(chld=0;chld<lf->nchld;chld++)
+		for(chld=1;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], lv, app);
 			if(res.type!=L_STR) continue;
@@ -823,7 +835,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		if(regcomp(&reg, pattern.data.str, REG_NOSUB|REG_EXTENDED)) {free_lvalue(pattern); return(l_str(NULL));}
 		free_lvalue(pattern);
 		unsigned int chld;
-		for(chld=0;chld<lf->nchld;chld++)
+		for(chld=1;chld<lf->nchld;chld++)
 		{
 			lvalue res=l_eval(&lf->chld[chld], lv, app);
 			if(res.type!=L_STR) continue;
@@ -958,7 +970,7 @@ bool l_asbool(lvalue val)
 		case L_NUM:
 			return(val.data.num);
 		case L_STR:
-			return(val.data.str);
+			return(val.data.str&&strlen(val.data.str));
 		case L_BLO:
 			return(val.data.blo.len);
 	}

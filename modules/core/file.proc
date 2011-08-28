@@ -1,0 +1,5 @@
+(add \
+	(rule [not [ctype]]) \
+	(proc file) \
+	(onfail 500) \
+	)
