@@ -350,7 +350,7 @@ int main(int argc, char **argv)
 						case NONE:;
 							if(transcript) fprintf(stderr, "horde: data from %s[%d] (fd=%u)\n", workers[w].name, workers[w].pid, rfd);
 							char *buf=getl(workers[w].pipe[0]);
-							if(*buf)
+							if(buf&&*buf)
 							{
 								if(transcript) fprintf(stderr, "horde: < '%s'\n", buf);
 								hmsg h=hmsg_from_str(buf, false);
