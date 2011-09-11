@@ -286,7 +286,18 @@ int handle(const char *inp, hstate *hst, bool rc)
 				free_hmsg(h);
 				return(1);
 			}
-			if(strstr(h->data, "/../"))
+			if(!h->data)
+			{
+				hmsg r=new_hmsg("proc", "/400.htm"); // tail-recursive proc call
+				char st[TL_SHORT];
+				hputshort(st, 400);
+				add_htag(r, "status", st);
+				add_htag(r, "statusmsg", "Bad Request");
+				if(from) add_htag(r, "from", from);
+				hsend(1, r);
+				free_hmsg(r);
+			}
+			else if(strstr(h->data, "/../"))
 			{
 				hmsg r=new_hmsg("err", NULL);
 				add_htag(r, "what", "illegal-path"); // this shouldn't ever happen, hence why we report instead of giving a 4xx
