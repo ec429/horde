@@ -223,6 +223,7 @@ char *normalise_path(char *path)
 		}
 		el[i]=strtok(NULL, "/");
 	}
+	if(!i) return(strdup("/"));
 	char *rpath;unsigned int rl, ri;
 	init_char(&rpath, &rl, &ri);
 	for(j=0;j<i;j++)
