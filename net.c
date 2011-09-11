@@ -154,6 +154,7 @@ int main(int argc, char **argv)
 		if(n_line)
 			line=n_line;
 		// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
+		if(hst.debug) fprintf(stderr, "horde: %s[%d]: Request-Line: %s\n", hst.name, getpid(), line[0]);
 		char *method=strtok(line[0], " ");
 		char *uri=strtok(NULL, " ");
 		char *ver=strtok(NULL, "");
