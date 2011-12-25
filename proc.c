@@ -626,6 +626,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 											if((strcmp(r->p_tag[i], "from")!=0)&&(strcmp(r->p_tag[i], "to")!=0))
 												add_htag(fh, r->p_tag[i], r->p_value[i]);
 										}
+										add_htag(fh, "rqpath", h->data);
 										hsend(1, fh);
 										free_hmsg(fh);
 										processed=true;

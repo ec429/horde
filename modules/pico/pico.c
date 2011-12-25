@@ -17,7 +17,7 @@
 #include "bits.h"
 #include "libhorde.h"
 
-#define PICO_VER	"0.0.3"
+#define PICO_VER	"0.0.4"
 
 void handle(const char *inp, hstate *hst);
 char *picofy(const hmsg h, hstate *hst);
@@ -146,6 +146,7 @@ void handle(const char *inp, hstate *hst)
 char *picofy(const hmsg h, hstate *hst)
 {
 	const char *ua=NULL;
+	const char *rqpath=NULL;
 	for(unsigned int i=0;i<h->nparms;i++)
 	{
 		//if(hst->debug) fprintf(stderr, "horde: %s[%d]: \t (%s|%s)\n", hst->name, getpid(), h->p_tag[i], h->p_value[i]);
@@ -158,6 +159,10 @@ char *picofy(const hmsg h, hstate *hst)
 			if(hdr==HTTP_HEADER_USER_AGENT)
 				ua=h->p_value[i]+colon;
 			free(hname);
+		}
+		else if(strcmp(h->p_tag[i], "rqpath")==0)
+		{
+			rqpath=h->p_value[i];
 		}
 	}
 	char *rv;
@@ -283,6 +288,10 @@ char *picofy(const hmsg h, hstate *hst)
 					}
 					if(hst->shutdown)
 						exit(EXIT_FAILURE);
+				}
+				else if(strcmp(d, "rqpath")==0)
+				{
+					append_str(&rv, &l, &i, rqpath);
 				}
 				// jump over the tag
 				d=e;
