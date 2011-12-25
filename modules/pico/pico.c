@@ -17,10 +17,10 @@
 #include "bits.h"
 #include "libhorde.h"
 
-#define PICO_VER	"0.0.2"
+#define PICO_VER	"0.0.3"
 
 void handle(const char *inp, hstate *hst);
-char *picofy(const hmsg h, const hstate *hst);
+char *picofy(const hmsg h, hstate *hst);
 
 bool debug, pipeline;
 
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 void handle(const char *inp, hstate *hst)
 {
 	hmsg h=hmsg_from_str(inp, true);
-	if(hmsg_state(h, hst)) return;
+	if(hmsg_state(h, hst)) {free_hmsg(h); return;}
 	if(h)
 	{
 		const char *from=gettag(h, "from");
@@ -143,7 +143,7 @@ void handle(const char *inp, hstate *hst)
 	return;
 }
 
-char *picofy(const hmsg h, const hstate *hst)
+char *picofy(const hmsg h, hstate *hst)
 {
 	const char *ua=NULL;
 	for(unsigned int i=0;i<h->nparms;i++)
@@ -260,6 +260,30 @@ char *picofy(const hmsg h, const hstate *hst)
 				}
 				else if(strcmp(d, "version")==0)
 					append_str(&rv, &l, &i, "horde "HTTPD_VERSION" / pico "PICO_VER);
+				else if(strcmp(d, "uptime")==0)
+				{
+					hmsg u=new_hmsg("uptime", "horde: ^h | system: ^s");
+					hsend(1, u);
+					while(!hst->shutdown)
+					{
+						char *inp=getl(STDIN_FILENO);
+						if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+						if(!*inp) {free(inp);continue;}
+						hmsg h=hmsg_from_str(inp, true);
+						if(!hmsg_state(h, hst))
+						{
+							if(strcmp(h->funct, "uptime")==0)
+							{
+								append_str(&rv, &l, &i, h->data);
+								break;
+							}
+						}
+						free_hmsg(h);
+						free(inp);
+					}
+					if(hst->shutdown)
+						exit(EXIT_FAILURE);
+				}
 				// jump over the tag
 				d=e;
 			}
