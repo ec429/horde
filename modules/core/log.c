@@ -22,7 +22,7 @@ char *logfile; // we don't use hstate because we're an 'only', and we're atypica
 int main(void)
 {
 	logfile=NULL;
-	FILE *rc=fopen(".log", "r");
+	FILE *rc=fopen("modules/core/log.rc", "r");
 	if(rc)
 	{
 		char *line;

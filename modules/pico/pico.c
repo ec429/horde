@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 {
 	hstate hst;
 	hst_init(&hst, argc?argv[0]:"pico", false);
-	FILE *rc=fopen(".pico", "r");
+	FILE *rc=fopen("modules/pico/pico.rc", "r");
 	if(rc)
 	{
 		char *line;
