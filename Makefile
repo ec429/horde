@@ -21,6 +21,9 @@ proc: proc.c $(INCLUDES) $(LIBS)
 modules: $(INCLUDES) $(LIBS)
 	$(MAKE) -C modules
 
+local: modules
+	$(MAKE) -C modules/local
+
 clean:
 	-rm $(LIBS) horde net proc
 	$(MAKE) -C modules clean
