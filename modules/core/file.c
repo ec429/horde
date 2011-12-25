@@ -22,10 +22,7 @@
 int main(int argc, char **argv)
 {
 	hstate hst;
-	hst.name=argc?argv[0]:"file";
-	hst.shutdown=false;
-	hst.debug=false;
-	hst.pipeline=true;
+	hst_init(&hst, argc?argv[0]:"file", true);
 	magic_t filemagic=magic_open(MAGIC_SYMLINK|MAGIC_MIME_TYPE);
 	if(filemagic==NULL)
 	{

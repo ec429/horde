@@ -86,7 +86,7 @@ unsigned int nhandlers;
 handler *handlers;
 
 bool debug, pipeline, transcript;
-const char *root;
+const char *root, *host;
 size_t maxbytesdaily, bytestoday;
 unsigned long net_micro, net_rqs;
 
@@ -100,6 +100,11 @@ int main(int argc, char **argv)
 		perror("horde: getcwd");
 		return(EXIT_FAILURE);
 	}
+	char hostbuf[HOST_NAME_MAX+1];
+	if(gethostname(hostbuf, HOST_NAME_MAX))
+		host=NULL;
+	else
+		host=hostbuf;
 	root="root"; // virtual root
 	uid_t realuid=65534; // less-privileged uid, default 'nobody'
 	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
@@ -116,6 +121,8 @@ int main(int argc, char **argv)
 			sscanf(varg+7, "%hu", &port);
 		else if(strncmp(varg, "--conf=", 7)==0)
 			confdir=varg+7;
+		else if(strncmp(varg, "--host=", 7)==0)
+			host=varg+7;
 		else if(strncmp(varg, "--root=", 7)==0)
 			root=varg+7;
 		else if(strncmp(varg, "--uid=", 6)==0)

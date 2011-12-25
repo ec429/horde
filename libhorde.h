@@ -21,7 +21,7 @@
 #include "bits.h"
 #include "http.h"
 
-#define HTTPD_VERSION	"0.0.2"
+#define HTTPD_VERSION	"0.0.3"
 
 typedef struct
 {
@@ -38,6 +38,7 @@ typedef struct
 {
 	const char *name;
 	char *root;
+	char *host;
 	bool debug;
 	bool pipeline;
 	bool shutdown;
@@ -101,6 +102,7 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value);
 char *str_from_hmsg(const hmsg h);
 hmsg hmsg_from_str(const char *str, bool read); // should we hmsg_read() where appropriate?  (Typically, YES except in the dispatcher)
 hmsg hmsg_read(hmsg h); // apply a (read) tag if one is present (and data is absent)
+void hst_init(hstate *s, const char *name, bool pipeline);
 bool hmsg_state(hmsg h, hstate *s); // returns false if message was not a recognised state message
 const char *gettag(hmsg h, const char *tag);
 void free_hmsg(hmsg h);

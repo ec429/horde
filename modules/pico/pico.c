@@ -17,7 +17,7 @@
 #include "bits.h"
 #include "libhorde.h"
 
-#define PICO_VER	"0.0.4"
+#define PICO_VER	"0.0.5"
 
 void handle(const char *inp, hstate *hst);
 char *picofy(const hmsg h, hstate *hst);
@@ -27,11 +27,7 @@ bool debug, pipeline;
 int main(int argc, char **argv)
 {
 	hstate hst;
-	hst.name=argc?argv[0]:"pico";
-	hst.root=strdup("root");
-	hst.shutdown=false;
-	hst.pipeline=false;
-	hst.debug=false;
+	hst_init(&hst, argc?argv[0]:"pico", false);
 	FILE *rc=fopen(".pico", "r");
 	if(rc)
 	{
@@ -290,9 +286,9 @@ char *picofy(const hmsg h, hstate *hst)
 						exit(EXIT_FAILURE);
 				}
 				else if(strcmp(d, "rqpath")==0)
-				{
 					append_str(&rv, &l, &i, rqpath);
-				}
+				else if(strcmp(d, "host")==0)
+					append_str(&rv, &l, &i, hst->host);
 				// jump over the tag
 				d=e;
 			}

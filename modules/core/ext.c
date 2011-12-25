@@ -40,10 +40,7 @@ mime_lib lib;
 int main(int argc, char **argv)
 {
 	hstate hst;
-	hst.name=argc?argv[0]:"ext";
-	hst.shutdown=false;
-	hst.debug=false;
-	hst.pipeline=true;
+	hst_init(&hst, argc?argv[0]:"ext", true);
 	lib.nuser=lib.nsystem=0;
 	lib.user=lib.system=NULL;
 	sys_mime_lib(hst.name);

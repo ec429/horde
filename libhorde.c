@@ -431,6 +431,16 @@ hmsg hmsg_read(hmsg h)
 	return(h);
 }
 
+void hst_init(hstate *s, const char *name, bool pipeline)
+{
+	s->name=name;
+	s->root=strdup("root");
+	s->host=strdup("[error]");
+	s->shutdown=false;
+	s->debug=false;
+	s->pipeline=pipeline;
+}
+
 bool hmsg_state(hmsg h, hstate *s)
 {
 	if(!h) return(false);
@@ -508,9 +518,49 @@ bool hmsg_state(hmsg h, hstate *s)
 				hfin(EXIT_FAILURE);
 				exit(EXIT_FAILURE); // shouldn't really happen
 			}
-			if(s->root) free(s->root);
+			free(s->root);
 			s->root=nr;
 			if(s->debug) fprintf(stderr, "horde: %s[%d]: root set to '%s'\n", s->name, getpid(), s->root);
+		}
+		return(true);
+	}
+	if(strcmp(h->funct, "host")==0)
+	{
+		if(!h->data)
+		{
+			if(s->debug) fprintf(stderr, "horde: %s[%d]: missing data in (host)\n", s->name, getpid());
+			hmsg eh=new_hmsg("err", NULL);
+			if(eh)
+			{
+				add_htag(eh, "what", "missing-data");
+				const char *from=gettag(h, "from");
+				if(from) add_htag(eh, "to", from);
+				hsend(1, eh);
+				free_hmsg(eh);
+			}
+		}
+		else
+		{
+			char *nh=strdup(h->data);
+			if(!nh)
+			{
+				if(s->debug) fprintf(stderr, "horde: %s[%d]: allocation failure (char *host): strdup: %s\n", s->name, getpid(), strerror(errno));
+				hmsg eh=new_hmsg("err", NULL);
+				if(eh)
+				{
+					add_htag(eh, "what", "allocation-failure");
+					add_htag(eh, "fatal", NULL);
+					const char *from=gettag(h, "from");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
+				hfin(EXIT_FAILURE);
+				exit(EXIT_FAILURE); // shouldn't really happen
+			}
+			free(s->host);
+			s->host=nh;
+			if(s->debug) fprintf(stderr, "horde: %s[%d]: host set to '%s'\n", s->name, getpid(), s->host);
 		}
 		return(true);
 	}

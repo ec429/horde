@@ -43,11 +43,7 @@ processor *procs;
 int main(int argc, char **argv)
 {
 	hstate hst;
-	hst.name=argc?argv[0]:"proc";
-	hst.root=strdup("root");
-	hst.shutdown=false;
-	hst.pipeline=false;
-	hst.debug=false;
+	hst_init(&hst, argc?argv[0]:"proc", false);
 	nprocs=0;
 	procs=NULL;
 	char cwdbuf[CWD_BUF_SIZE];

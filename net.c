@@ -32,9 +32,7 @@ char *logline(unsigned int status, unsigned long length, const char *path, const
 int main(int argc, char **argv)
 {
 	hstate hst;
-	hst.name=argc?argv[0]:"net";
-	hst.shutdown=false;
-	hst.debug=false;
+	hst_init(&hst, argc?argv[0]:"net", false);
 	const char *server="horde/"HTTPD_VERSION;
 	while(check_msgs(&hst));
 	int newhandle;
