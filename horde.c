@@ -659,6 +659,7 @@ int handle(const char *inp, const char *file)
 				}
 				if(!found)
 					fprintf(stderr, "horde: kill: not found: %s\n", h->data);
+				free_hmsg(k);
 			}
 			else
 				fprintf(stderr, "horde: usage: kill <pid>\n");
