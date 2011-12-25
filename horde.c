@@ -672,8 +672,8 @@ int handle(const char *inp, const char *file)
 			{
 				if(strcmp(workers[w].name, h->data)==0)
 				{
-					if(workers[w].pid>0)
-						hsend(workers[w].pipe[1], k);
+					hsend(workers[w].pipe[1], k);
+					fprintf(stderr, "horde: killed %s[%u]\n", workers[w].name, workers[w].pid);
 					found=true;
 				}
 			}
