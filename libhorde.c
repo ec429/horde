@@ -442,6 +442,12 @@ bool hmsg_state(hmsg h, hstate *s)
 		s->shutdown=true;
 		return(true);
 	}
+	if(strcmp(h->funct, "kill")==0)
+	{
+		if(s->debug) fprintf(stderr, "horde: %s[%d]: killed\n", s->name, getpid());
+		s->shutdown=true;
+		return(true);
+	}
 	if(strcmp(h->funct, "debug")==0)
 	{
 		if(h->data)

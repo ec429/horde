@@ -78,6 +78,8 @@ int handle(const char *inp, const char *file);
 int handle_add(const hmsg h);
 int handle_workers(hmsg h);
 
+void uptime_respond(unsigned int w, hmsg h, time_t upsince);
+
 unsigned int nworkers;
 worker *workers;
 unsigned int nhandlers;
@@ -190,7 +192,7 @@ int main(int argc, char **argv)
 		perror("horde: listen");
 		return(EXIT_FAILURE);
 	}
-	time_t /*upsince = time(NULL),*/ last_midnight=0;
+	time_t upsince = time(NULL), last_midnight=0;
 	fd_set master, readfds;
 	int fdmax;
 	nworkers=0;
@@ -422,6 +424,10 @@ int main(int argc, char **argv)
 													workers[wsock].accepting=true;
 											}
 										}
+										else if(strcmp(h->funct, "uptime")==0)
+										{
+											uptime_respond(w, h, upsince);
+										}
 										else if(strcmp(h->funct, "err")==0)
 										{
 											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
@@ -633,12 +639,14 @@ int handle(const char *inp, const char *file)
 			if(debug) fprintf(stderr, "horde: killing all %s\n", h->data);
 			bool found=false;
 			hmsg k=new_hmsg("kill", NULL);
-			int w;
-			while((w=find_worker(h->data, false, NULL, NULL))>=0)
+			for(unsigned int w=0;w<nworkers;w++)
 			{
-				if(workers[w].pid>0)
-					hsend(workers[w].pipe[1], k);
-				found=true;
+				if(strcmp(workers[w].name, h->data)==0)
+				{
+					if(workers[w].pid>0)
+						hsend(workers[w].pipe[1], k);
+					found=true;
+				}
 			}
 			free_hmsg(k);
 			if(!found)
@@ -991,4 +999,53 @@ int add_handler(handler new)
 	handlers=new_h;
 	new_h[nh]=new;
 	return(nh);
+}
+
+void uptime_respond(unsigned int w, hmsg h, time_t upsince)
+{
+	time_t now=time(NULL);
+	char *rv;
+	unsigned int l,i;
+	init_char(&rv, &l, &i);
+	char *d=h->data;
+	int seconds;
+	char ups[320];
+	while(*d)
+	{
+		switch(*d)
+		{
+			case '^':
+				switch(d[1])
+				{
+					case 'h':
+						seconds=difftime(now, upsince);
+						snprintf(ups, 320, "%u days, %.2u:%.2u:%.2u", (seconds/86400), (seconds/3600)%24, (seconds/60)%60, seconds%60);
+						append_str(&rv, &l, &i, ups);
+						d++;
+					break;
+					case 's':;
+						FILE *sysupp=fopen("/proc/uptime", "r");
+						double dseconds=-1;
+						fscanf(sysupp, "%lg", &dseconds);
+						seconds=dseconds;
+						fclose(sysupp);
+						snprintf(ups, 320, "%u days, %.2u:%.2u:%.2u", (seconds/86400), (seconds/3600)%24, (seconds/60)%60, seconds%60);
+						append_str(&rv, &l, &i, ups);
+						d++;
+					break;
+					default:
+						append_char(&rv, &l, &i, *d);
+					break;
+				}
+			break;
+			default:
+				append_char(&rv, &l, &i, *d);
+			break;
+		}
+		d++;
+	}
+	hmsg u=new_hmsg("uptime", rv);
+	free(rv);
+	hsend(workers[w].pipe[1], u);
+	free_hmsg(u);
 }
