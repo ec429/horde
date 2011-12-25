@@ -96,6 +96,10 @@ int handle(const char *inp)
 		{
 			errupt++;
 		}
+		else if(strcmp(h->funct, "kill")==0)
+		{
+			errupt++;
+		}
 		else if(strcmp(h->funct, "logf")==0)
 		{
 			if(h->data)
