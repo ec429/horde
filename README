@@ -59,6 +59,7 @@ TODO: add a second form of time profiling in dispatcher, which doesn't charge a 
 TODO: make proc pay attention to the (onfail) attribute
 TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
+TODO: Handle hostnames in GET-url (check it's ours!)
 
 Sample Transcript:
 ------------------
