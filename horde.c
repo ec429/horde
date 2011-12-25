@@ -628,6 +628,25 @@ int handle(const char *inp, const char *file)
 			if(debug) fprintf(stderr, "horde: server is shutting down\n");
 			e=2;
 		}
+		else if(strcmp(h->funct, "killall")==0)
+		{
+			if(debug) fprintf(stderr, "horde: killing all %s\n", h->data);
+			bool found=false;
+			hmsg k=new_hmsg("kill", NULL);
+			int w;
+			while((w=find_worker(h->data, false, NULL, NULL))>=0)
+			{
+				if(workers[w].pid>0)
+					hsend(workers[w].pipe[1], k);
+				found=true;
+			}
+			free_hmsg(k);
+			if(!found)
+			{
+				fprintf(stderr, "horde: killall: not found: %s\n", h->data);
+				e=3;
+			}
+		}
 		else if(strcmp(h->funct, "debug")==0)
 		{
 			if(h->data)
