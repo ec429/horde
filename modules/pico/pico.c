@@ -12,12 +12,13 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
 #include "bits.h"
 #include "libhorde.h"
 
-#define PICO_VER	"0.0.5"
+#define PICO_VER	"0.0.6"
 
 void handle(const char *inp, hstate *hst);
 char *picofy(const hmsg h, hstate *hst);
@@ -278,6 +279,11 @@ char *picofy(const hmsg h, hstate *hst)
 								append_str(&rv, &l, &i, h->data);
 								break;
 							}
+							else if(strcmp(h->funct, "err")==0)
+							{
+								append_str(&rv, &l, &i, "[error]");
+								break;
+							}
 						}
 						free_hmsg(h);
 						free(inp);
@@ -289,6 +295,43 @@ char *picofy(const hmsg h, hstate *hst)
 					append_str(&rv, &l, &i, rqpath);
 				else if(strcmp(d, "host")==0)
 					append_str(&rv, &l, &i, hst->host);
+				else if(strcmp(d, "now")==0)
+				{
+					char now[256];
+					time_t timer = time(NULL);
+					struct tm *tm = gmtime(&timer);
+					strftime(now, sizeof(now), f, tm);
+					append_str(&rv, &l, &i, now);
+				}
+				else if(strcmp(d, "stats")==0)
+				{
+					hmsg u=new_hmsg("stats", f);
+					hsend(1, u);
+					while(!hst->shutdown)
+					{
+						char *inp=getl(STDIN_FILENO);
+						if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+						if(!*inp) {free(inp);continue;}
+						hmsg h=hmsg_from_str(inp, true);
+						if(!hmsg_state(h, hst))
+						{
+							if(strcmp(h->funct, "stats")==0)
+							{
+								append_str(&rv, &l, &i, h->data);
+								break;
+							}
+							else if(strcmp(h->funct, "err")==0)
+							{
+								append_str(&rv, &l, &i, "[error]");
+								break;
+							}
+						}
+						free_hmsg(h);
+						free(inp);
+					}
+					if(hst->shutdown)
+						exit(EXIT_FAILURE);
+				}
 				// jump over the tag
 				d=e;
 			}

@@ -79,6 +79,8 @@ int handle_add(const hmsg h);
 int handle_workers(hmsg h);
 
 void uptime_respond(unsigned int w, hmsg h, time_t upsince);
+void stats_respond(unsigned int w, hmsg h);
+void statsup(hmsg h);
 
 unsigned int nworkers;
 worker *workers;
@@ -87,7 +89,7 @@ handler *handlers;
 
 bool debug, pipeline, transcript;
 const char *root, *host;
-size_t maxbytesdaily, bytestoday;
+size_t maxbytesdaily, bytes_today;
 unsigned long net_micro, net_rqs;
 
 int main(int argc, char **argv)
@@ -109,7 +111,7 @@ int main(int argc, char **argv)
 	uid_t realuid=65534; // less-privileged uid, default 'nobody'
 	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
 	maxbytesdaily=1<<29; // daily bandwidth limiter, default 0.5GB
-	bytestoday=0;
+	bytes_today=0;
 	debug=false; // write debugging info to stderr?
 	transcript=false; // write extra info?
 	pipeline=true; // run daemons in pipelined mode? (generally preferred for efficiency reasons; however debugging may be easier in single-invoke mode)
@@ -269,7 +271,7 @@ int main(int argc, char **argv)
 		if((now/86400)>(last_midnight/86400)) // reset b_s_m counter at midnight
 		{
 			last_midnight=now;
-			bytestoday=0;
+			bytes_today=0;
 		}
 		timeout.tv_sec=0;
 		timeout.tv_usec=250000;
@@ -432,9 +434,11 @@ int main(int argc, char **argv)
 											}
 										}
 										else if(strcmp(h->funct, "uptime")==0)
-										{
 											uptime_respond(w, h, upsince);
-										}
+										else if(strcmp(h->funct, "stats")==0)
+											stats_respond(w, h);
+										else if(strcmp(h->funct, "statsup")==0)
+											statsup(h);
 										else if(strcmp(h->funct, "err")==0)
 										{
 											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
@@ -1078,4 +1082,44 @@ void uptime_respond(unsigned int w, hmsg h, time_t upsince)
 	free(rv);
 	hsend(workers[w].pipe[1], u);
 	free_hmsg(u);
+}
+
+void stats_respond(unsigned int w, hmsg h)
+{
+	if(strcmp(h->data, "bytes_today")==0)
+	{
+		char rv[8];
+		if(bytes_today<2<<10)
+			snprintf(rv, 8, "%zu", bytes_today);
+		else if(bytes_today<2<<19)
+			snprintf(rv, 8, "%1.2fk", bytes_today/1024.0);
+		else if(bytes_today<2<<29)
+			snprintf(rv, 8, "%1.2fM", bytes_today/1048576.0);
+		else
+			snprintf(rv, 8, "%1.2fG", bytes_today/1073741824.0);
+		hmsg u=new_hmsg("stats", rv);
+		hsend(workers[w].pipe[1], u);
+		free_hmsg(u);
+	}
+	else
+	{
+		hmsg u=new_hmsg("err", "stats");
+		if(u) add_htag(u, "what", "unrecognised-arg");
+		hsend(workers[w].pipe[1], u);
+		free_hmsg(u);
+	}
+}
+
+void statsup(hmsg h)
+{
+	for(unsigned int i=0;i<h->nparms;i++)
+	{
+		if(strcmp(h->p_tag[i], "bytes_today")==0)
+		{
+			size_t morebytes;
+			if(sscanf(h->p_value[i], "%zu", &morebytes)==1)
+				bytes_today+=morebytes;
+			continue;
+		}
+	}
 }

@@ -28,6 +28,8 @@
 void err(unsigned int status, const char *statusmsg, const char *headers, int fd);
 bool check_msgs(hstate *hst);
 char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua); // returns a malloc-like pointer
+void send_statsup(size_t bytes);
+ssize_t sendall(int sockfd, const void *buf, size_t length, int flags);
 
 int main(int argc, char **argv)
 {
@@ -558,4 +560,29 @@ char *logline(unsigned int status, unsigned long length, const char *path, const
 	char *rv=malloc(strlen(ip)+1+datelen+1+strlen(st)+1+strlen(ac)+2+strlen(sz)+2+(path?strlen(path):1)+1+(ref?strlen(ref):2)+1+(ua?strlen(ua):2)+1);
 	sprintf(rv, "%s\t%s\t%s %s [%s] %s\t%s\t%s", ip, date, st, ac, sz, (path?path:"?"), (ref?ref:"--"), (ua?ua:".."));
 	return(rv);
+}
+
+void send_statsup(size_t bytes)
+{
+	hmsg h=new_hmsg("statsup", NULL);
+	char bt[TL_SIZET];
+	snprintf(bt, TL_SIZET, "%zu", bytes);
+	add_htag(h, "bytes_today", bt);
+	hsend(1, h);
+}
+
+ssize_t sendall(int sockfd, const void *buf, size_t length, int flags)
+{
+	send_statsup(length);
+	const char *p=buf;
+	ssize_t left=length;
+	ssize_t n;
+	while((n=send(sockfd, p, left, flags))<left)
+	{
+		if(n<0)
+			return(n);
+		p+=n;
+		left-=n;
+	}
+	return(0);
 }

@@ -21,7 +21,7 @@
 #include "bits.h"
 #include "http.h"
 
-#define HTTPD_VERSION	"0.0.3"
+#define HTTPD_VERSION	"0.0.4"
 
 typedef struct
 {
@@ -93,8 +93,6 @@ void hputlong(char *buf, unsigned long val);
 unsigned long hgetlong(const char *buf);
 void hputshort(char *buf, unsigned short val);
 unsigned short hgetshort(const char *buf);
-
-ssize_t sendall(int sockfd, const void *buf, size_t length, int flags);
 
 hmsg new_hmsg(const char *funct, const char *data);
 hmsg new_hmsg_d(const char *funct, const char *data, size_t dlen);

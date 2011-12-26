@@ -69,21 +69,6 @@ unsigned short hgetshort(const char *buf)
 	return(rv);
 }
 
-ssize_t sendall(int sockfd, const void *buf, size_t length, int flags)
-{
-	const char *p=buf;
-	ssize_t left=length;
-	ssize_t n;
-	while((n=send(sockfd, p, left, flags))<left)
-	{
-		if(n<0)
-			return(n);
-		p+=n;
-		left-=n;
-	}
-	return(0);
-}
-
 hmsg new_hmsg(const char *funct, const char *data)
 {
 	hmsg rv=malloc(sizeof(*rv));
