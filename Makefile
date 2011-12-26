@@ -17,6 +17,7 @@ proc: proc.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ proc.c $(LIBS)
 
 .PHONY: modules clean
+FORCE:
 
 modules: $(INCLUDES) $(LIBS)
 	$(MAKE) -C modules
@@ -28,8 +29,10 @@ clean:
 	-rm $(LIBS) horde net proc
 	$(MAKE) -C modules clean
 
+version.h: FORCE
+	sh gitversion
 
-libhorde.o: libhorde.c libhorde.h http.h bits.h
+libhorde.o: libhorde.c libhorde.h http.h bits.h version.h
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -o $@ -c $<

@@ -21,7 +21,7 @@
 #include "bits.h"
 #include "http.h"
 
-#define HTTPD_VERSION	"0.0.4"
+#include "version.h" // defines HTTPD_VERSION
 
 typedef struct
 {

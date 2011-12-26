@@ -7,3 +7,4 @@ modules/core/log
 *.o
 modules/pico/pico
 modules/local
+version.h

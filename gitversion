@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "#define HTTPD_VERSION	\"`git describe --tags`\"" > version.h2
+if ! cmp version.h version.h2; then mv version.h2 version.h; else rm version.h2; fi
