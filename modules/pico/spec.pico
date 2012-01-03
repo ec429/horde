@@ -1,13 +1,13 @@
 pico is intended to emulate the (somewhat limited) dynamic-HTML capabilities of the original httpico, which provided the following <?pico> commands:
 
 <?pico pfile="path">
-	Includes the text of the file at path (relative to the root; must begin with '/'), and processes any <?pico> tags within it.
+	Includes the text of the file at path (relative to the root; must begin with '/'), and processes any <?pico> tags within it.  path may contain <?pico> tags, which will be expanded prior to opening the file.
+
+<?pico file="path">
+	Includes the text of the file at path (relative to the root; must begin with '/'), with no processing performed.  path may contain <?pico> tags, which will be expanded prior to opening the file.
 
 <?pico log="path">
 	Includes the text of the file at path (relative to .), and adds a <br /> before each \n.  Should not process <?pico> tags within (although the original httpico did process 'file', leading to a security vulnerability).
-
-<?pico file="path">
-	Includes the text of the file at path (relative to .), with no processing performed.
 
 <?pico useragent>
 	Replaced with the User-Agent string supplied by the browser.

@@ -172,9 +172,17 @@ char *picofy(const hmsg h, hstate *hst)
 		if(strncmp(d, "<?pico", 6)==0)
 		{
 			d+=6;
+			unsigned int bc=1;
 			while(isspace(*d)) d++;
-			char *e=strchr(d, '>');
-			if(!e)
+			char *e=d;
+			while(bc)
+			{
+				if(*e=='<') bc++;
+				else if(*e=='>') bc--;
+				if(bc) e++;
+				if(!*e) break;
+			}
+			if(!*e)
 				append_char(&rv, &l, &i, *d++);
 			else
 			{
@@ -195,29 +203,67 @@ char *picofy(const hmsg h, hstate *hst)
 				// now d is the name and f is the format (if any)
 				if(strcmp(d, "pfile")==0)
 				{
-					if(f&&(*f=='/'))
+					if(f)
 					{
 						FILE *pf=NULL;
-						char *fn=malloc(strlen(f)+strlen(hst->root)+1);
-						if(fn)
+						hmsg fh=new_hmsg("pico", f);
+						for(unsigned int i=0;i<h->nparms;i++)
+							add_htag(fh, h->p_tag[i], h->p_value[i]);
+						char *fpd=picofy(fh, hst);
+						free_hmsg(fh);
+						if(fpd&&(*fpd=='/'))
 						{
-							sprintf(fn, "%s%s", hst->root, f);
-							pf=fopen(fn, "r");
+							char *fn=malloc(strlen(fpd)+strlen(hst->root)+1);
+							if(fn)
+							{
+								sprintf(fn, "%s%s", hst->root, fpd);
+								pf=fopen(fn, "r");
+							}
+							if(pf)
+							{
+								char *pfd;
+								ssize_t length=dslurp(pf, &pfd);
+								fclose(pf);
+								hmsg ph=new_hmsg_d("pico", pfd, length);
+								free(pfd);
+								for(unsigned int i=0;i<h->nparms;i++)
+									add_htag(ph, h->p_tag[i], h->p_value[i]);
+								char *pd=picofy(ph, hst);
+								if(pd)
+									append_str(&rv, &l, &i, pd);
+								free(pd);
+								free_hmsg(ph);
+							}
 						}
-						if(pf)
+					}
+				}
+				else if(strcmp(d, "file")==0)
+				{
+					if(f)
+					{
+						FILE *pf=NULL;
+						hmsg fh=new_hmsg("pico", f);
+						for(unsigned int i=0;i<h->nparms;i++)
+							add_htag(fh, h->p_tag[i], h->p_value[i]);
+						char *fpd=picofy(fh, hst);
+						free_hmsg(fh);
+						if(fpd&&(*fpd=='/'))
 						{
-							char *pfd;
-							ssize_t length=dslurp(pf, &pfd);
-							fclose(pf);
-							hmsg ph=new_hmsg_d("pico", pfd, length);
-							free(pfd);
-							for(unsigned int i=0;i<h->nparms;i++)
-								add_htag(ph, h->p_tag[i], h->p_value[i]);
-							char *pd=picofy(ph, hst);
-							if(pd)
-								append_str(&rv, &l, &i, pd);
-							free(pd);
-							free_hmsg(ph);
+							char *fn=malloc(strlen(fpd)+strlen(hst->root)+1);
+							if(fn)
+							{
+								sprintf(fn, "%s%s", hst->root, fpd);
+								pf=fopen(fn, "r");
+							}
+							if(pf)
+							{
+								char *pfd;
+								ssize_t length=dslurp(pf, &pfd);
+								fclose(pf);
+								for(off_t o=0;o<length;o++)
+									append_char(&rv, &l, &i, pfd[o]);
+								free(pfd);
+							}
 						}
 					}
 				}
@@ -237,21 +283,6 @@ char *picofy(const hmsg h, hstate *hst)
 								append_str(&rv, &l, &i, "<br />");
 							append_char(&rv, &l, &i, pfd[o]);
 						}
-						free(pfd);
-					}
-				}
-				else if(strcmp(d, "file")==0)
-				{
-					FILE *pf=NULL;
-					if(f)
-						pf=fopen(f, "r");
-					if(pf)
-					{
-						char *pfd;
-						ssize_t length=dslurp(pf, &pfd);
-						fclose(pf);
-						for(off_t o=0;o<length;o++)
-							append_char(&rv, &l, &i, pfd[o]);
 						free(pfd);
 					}
 				}
@@ -292,7 +323,7 @@ char *picofy(const hmsg h, hstate *hst)
 						exit(EXIT_FAILURE);
 				}
 				else if(strcmp(d, "rqpath")==0)
-					append_str(&rv, &l, &i, rqpath);
+					append_str(&rv, &l, &i, rqpath?rqpath:"");
 				else if(strcmp(d, "host")==0)
 					append_str(&rv, &l, &i, hst->host);
 				else if(strcmp(d, "now")==0)
