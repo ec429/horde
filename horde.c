@@ -1088,15 +1088,15 @@ void stats_respond(unsigned int w, hmsg h)
 {
 	if(strcmp(h->data, "bytes_today")==0)
 	{
-		char rv[8];
+		char rv[12];
 		if(bytes_today<2<<10)
-			snprintf(rv, 8, "%zu", bytes_today);
+			snprintf(rv, 12, "%zu", bytes_today);
 		else if(bytes_today<2<<19)
-			snprintf(rv, 8, "%1.2fk", bytes_today/1024.0);
+			snprintf(rv, 12, "%1.2fk", bytes_today/1024.0);
 		else if(bytes_today<2<<29)
-			snprintf(rv, 8, "%1.2fM", bytes_today/1048576.0);
+			snprintf(rv, 12, "%1.2fM", bytes_today/1048576.0);
 		else
-			snprintf(rv, 8, "%1.2fG", bytes_today/1073741824.0);
+			snprintf(rv, 12, "%1.2fG", bytes_today/1073741824.0);
 		hmsg u=new_hmsg("stats", rv);
 		hsend(workers[w].pipe[1], u);
 		free_hmsg(u);
