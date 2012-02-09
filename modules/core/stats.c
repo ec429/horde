@@ -77,7 +77,10 @@ int handle(const char *inp)
 	{
 		if(strcmp(h->funct, "tail")==0)
 		{
-			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *pa=gettag(h, "rpath");
+			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *st=gettag(h, "status"), *pa=gettag(h, "rpath");
+			unsigned short status=0;
+			if(st)
+				sscanf(st, "%hu", &status);
 			if(sz)
 			{
 				size_t bytes=0;
@@ -98,7 +101,7 @@ int handle(const char *inp)
 			}
 			else
 				page=true;
-			if(page)
+			if(page&&(status!=404))
 			{
 				pages_today[0]++;
 				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
