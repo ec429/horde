@@ -54,12 +54,15 @@ Another way to pass binary data, rather than using new_hmsg_d(), is to use the (
 
 Plans:
 ------
-TODO: cull excessive idle workers.
+TODO: replace the hex-encoding with escaping (it's much more textual)
+TODO: make the libhorde interfaces use string structs (rather than having the new_hmsg and new_hmsg_d profusion)
+TODO: cull excessive idle workers
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
 TODO: make proc pay attention to the (onfail) attribute
 TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way to detect loops (in case a 500 page triggers an error/bug within proc or one of its processors)
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
 TODO: Handle hostnames in GET-url (check it's ours!)
+TODO: Bernstein chaining - have a launcher that binds the socket, drops privs, then execs horde.  At the moment horde could (maybe) regain privs if compromised
 
 Sample Transcript:
 ------------------
