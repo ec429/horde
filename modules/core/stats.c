@@ -84,7 +84,7 @@ int handle(const char *inp)
 				sscanf(sz, "%zu", &bytes);
 				bytes_today[0]+=bytes;
 				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
-					bytes_today[1]++;
+					bytes_today[1]+=bytes;
 			}
 			else
 				fprintf(stderr, "horde: stats[%d]: sz is NULL\n", getpid());
