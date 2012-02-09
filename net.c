@@ -455,11 +455,11 @@ int main(int argc, char **argv)
 				add_htag(l, "status", st);
 				sprintf(sz, "%hu", h->dlen);
 				add_htag(l, "bytes", sz);
-				add_htag(l, "rpath", rpath);
-				add_htag(l, "ip", ip);
+				if(rpath) add_htag(l, "rpath", rpath);
+				if(ip) add_htag(l, "ip", ip);
 				add_htag(l, "method", "GET");
-				add_htag(l, "referrer", ref);
-				add_htag(l, "user-agent", ua);
+				if(ref) add_htag(l, "referrer", ref);
+				if(ua) add_htag(l, "user-agent", ua);
 				add_htag(l, "date", date);
 				gettimeofday(&endtime, NULL);
 				double dt=difftime(endtime.tv_sec, starttime.tv_sec)+(endtime.tv_usec-starttime.tv_usec)*1e-6;

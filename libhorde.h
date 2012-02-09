@@ -102,7 +102,7 @@ hmsg hmsg_from_str(const char *str, bool read); // should we hmsg_read() where a
 hmsg hmsg_read(hmsg h); // apply a (read) tag if one is present (and data is absent)
 void hst_init(hstate *s, const char *name, bool pipeline);
 bool hmsg_state(hmsg h, hstate *s); // returns false if message was not a recognised state message
-const char *gettag(hmsg h, const char *tag);
+const char *gettag(hmsg h, const char *tag); // returns NULL in the case of a tag without a value
 void free_hmsg(hmsg h);
 
 lform new_lform(const char *funct);

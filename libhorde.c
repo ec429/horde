@@ -560,8 +560,7 @@ const char *gettag(hmsg h, const char *tag)
 	{
 		if(!h->p_tag[i]) continue;
 		if(strcmp(h->p_tag[i], tag)) continue;
-		if(h->p_value[i]) return(h->p_value[i]);
-		return("true"); // for implicit tags
+		return(h->p_value[i]);
 	}
 	return(NULL);
 }
