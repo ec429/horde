@@ -64,6 +64,7 @@ TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way 
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
 TODO: Handle hostnames in GET-url (check it's ours!)
 TODO: Bernstein chaining - have a launcher that binds the socket, drops privs, then execs horde.  At the moment horde could (maybe) regain privs if compromised
+TODO: a module for simple redirection: if the file is a symlink and its target is under the root, rewrite the URL and 302 it
 
 Sample Transcript:
 ------------------
