@@ -251,12 +251,21 @@ int main(int argc, char **argv)
 		perror("horde: chdir");
 		return(EXIT_FAILURE);
 	}
-	fprintf(stderr, "horde: setting signal handlers\n");
+	if(debug) fprintf(stderr, "horde: setting signal handlers\n");
 	if(signal(SIGPIPE, SIG_IGN)==SIG_ERR)
 		perror("horde: failed to set SIGPIPE handler: signal");
 	if(signal(SIGCHLD, SIG_IGN)==SIG_ERR)
 		perror("horde: failed to set SIGCHLD handler: signal");
-	if(debug) printf("horde: started ok, listening on port %hu\n", port);
+	if(debug) fprintf(stderr, "horde: starting gatekeepers\n");
+	for(unsigned int h=0;h<nhandlers;h++)
+	{
+		if(handlers[h].only)
+		{
+			if(handlers[h].name)
+				find_worker(handlers[h].name, true, &fdmax, &master);
+		}
+	}
+	if(debug) fprintf(stderr, "horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
 	char *input; unsigned int inpl, inpi;
 	init_char(&input, &inpl, &inpi);
