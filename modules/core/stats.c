@@ -78,6 +78,7 @@ int handle(const char *inp)
 		if(strcmp(h->funct, "tail")==0)
 		{
 			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *st=gettag(h, "status"), *pa=gettag(h, "rpath");
+			bool nonlocal=(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0);
 			unsigned short status=0;
 			if(st)
 				sscanf(st, "%hu", &status);
@@ -86,7 +87,7 @@ int handle(const char *inp)
 				size_t bytes=0;
 				sscanf(sz, "%zu", &bytes);
 				bytes_today[0]+=bytes;
-				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
+				if(nonlocal)
 					bytes_today[1]+=bytes;
 			}
 			else
@@ -104,7 +105,7 @@ int handle(const char *inp)
 			if(page&&(status!=404))
 			{
 				pages_today[0]++;
-				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
+				if(nonlocal)
 					pages_today[1]++;
 			}
 		}
