@@ -1,5 +1,9 @@
 Release Notes for recent versions
 
+0.0.5	2012-02-09
+Various useful bits of helper functionality, and extension hooks, have been added (in particular the '(tail)' call).  Some structural changes have been made, and plenty of bugs fixed.
+It is now almost certain that key parts of the API will change; in particular provisions for POST and passing of binary data.
+
 0.0.2	2011-08-28
 Several improvements to the API; it's now basically sane and it may be possible to avoid further changes to existing interfaces; no promises though.
 Use in production environments is still not recommended.
