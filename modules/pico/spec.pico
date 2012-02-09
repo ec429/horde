@@ -29,8 +29,6 @@ pico is intended to emulate the (somewhat limited) dynamic-HTML capabilities of 
 
 <?pico stats="what">
 	Replaced with statistics, depending on the value of 'what':
-		pages_served	The total number of pages served
 		bytes_today		The total amount of data served today, with an appropriate unit
-		stats_began		The date & time at which the recording of statistics began
-		(also concurrent_conns, concurrent_max and concurrent_max_when, which will not be supported)
-	These statistics are not particularly useful, hence the existence of other mechanisms like genstats.
+		pages_today		The total number of pages served today
+		*_exclocal		*, excluding traffic from localhost

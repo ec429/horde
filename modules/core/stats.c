@@ -17,11 +17,11 @@
 #include "libhorde.h"
 
 int handle(const char *inp);
-size_t bytes_today;
+unsigned long pages_today[2]={0,0};
+size_t bytes_today[2]={0,0};
 
 int main(void)
 {
-	bytes_today=0;
 	FILE *rc=fopen("modules/core/stats.rc", "r");
 	if(rc)
 	{
@@ -77,15 +77,33 @@ int handle(const char *inp)
 	{
 		if(strcmp(h->funct, "tail")==0)
 		{
-			const char /* *ip=gettag(h, "ip"), *st=gettag(h, "status"), *ac=gettag(h, "method"),*/ *sz=gettag(h, "bytes");
+			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *pa=gettag(h, "rpath");
 			if(sz)
 			{
 				size_t bytes=0;
 				sscanf(sz, "%zu", &bytes);
-				bytes_today+=bytes;
+				bytes_today[0]+=bytes;
+				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
+					bytes_today[1]++;
 			}
 			else
 				fprintf(stderr, "horde: stats[%d]: sz is NULL\n", getpid());
+			bool page=false;
+			const char *dot=strrchr(pa, '.');
+			if(dot)
+			{
+				if(strcmp(dot, ".htm")==0) page=true;
+				if(strcmp(dot, ".html")==0) page=true;
+				if(strcmp(dot, ".txt")==0) page=true;
+			}
+			else
+				page=true;
+			if(page)
+			{
+				pages_today[0]++;
+				if((strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0))
+					pages_today[1]++;
+			}
 		}
 		else if(strcmp(h->funct, "stats")==0)
 		{
@@ -93,14 +111,48 @@ int handle(const char *inp)
 			if(strcmp(h->data, "bytes_today")==0)
 			{
 				char rv[12];
-				if(bytes_today<2<<10)
-					snprintf(rv, 12, "%zu", bytes_today);
-				else if(bytes_today<2<<19)
-					snprintf(rv, 12, "%1.2fk", bytes_today/1024.0);
-				else if(bytes_today<2<<29)
-					snprintf(rv, 12, "%1.2fM", bytes_today/1048576.0);
+				if(bytes_today[0]<2<<10)
+					snprintf(rv, 12, "%zu", bytes_today[0]);
+				else if(bytes_today[0]<2<<19)
+					snprintf(rv, 12, "%1.2fk", bytes_today[0]/1024.0);
+				else if(bytes_today[0]<2<<29)
+					snprintf(rv, 12, "%1.2fM", bytes_today[0]/1048576.0);
 				else
-					snprintf(rv, 12, "%1.2fG", bytes_today/1073741824.0);
+					snprintf(rv, 12, "%1.2fG", bytes_today[0]/1073741824.0);
+				hmsg u=new_hmsg("stats", rv);
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
+			}
+			else if(strcmp(h->data, "bytes_today_exclocal")==0)
+			{
+				char rv[12];
+				if(bytes_today[1]<2<<10)
+					snprintf(rv, 12, "%zu", bytes_today[1]);
+				else if(bytes_today[1]<2<<19)
+					snprintf(rv, 12, "%1.2fk", bytes_today[1]/1024.0);
+				else if(bytes_today[1]<2<<29)
+					snprintf(rv, 12, "%1.2fM", bytes_today[1]/1048576.0);
+				else
+					snprintf(rv, 12, "%1.2fG", bytes_today[1]/1073741824.0);
+				hmsg u=new_hmsg("stats", rv);
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
+			}
+			else if(strcmp(h->data, "pages_today")==0)
+			{
+				char rv[TL_LONG];
+				snprintf(rv, TL_LONG, "%lu", pages_today[0]);
+				hmsg u=new_hmsg("stats", rv);
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
+			}
+			else if(strcmp(h->data, "pages_today_exclocal")==0)
+			{
+				char rv[TL_LONG];
+				snprintf(rv, TL_LONG, "%lu", pages_today[1]);
 				hmsg u=new_hmsg("stats", rv);
 				if(from) add_htag(u, "to", from);
 				hsend(1, u);
@@ -126,7 +178,10 @@ int handle(const char *inp)
 		else if(strcmp(h->funct, "pulse")==0)
 		{
 			if(strcmp(h->data, "midnight")==0)
-				bytes_today=0;
+			{
+				bytes_today[0]=bytes_today[1]=0;
+				pages_today[0]=pages_today[1]=0;
+			}
 		}
 		free_hmsg(h);
 	}
