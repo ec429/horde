@@ -1,0 +1,7 @@
+(add \
+	(name stats) \
+	(tail) \
+	(prog modules/core/stats) \
+	(only) \
+	(pulse midnight) \
+	)

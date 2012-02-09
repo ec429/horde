@@ -1,5 +1,5 @@
 (add \
-	(name log) \
+	(tail) \
 	(prog modules/core/log) \
 	(only) \
 	)

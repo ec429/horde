@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -27,8 +28,6 @@
 
 void err(unsigned int status, const char *statusmsg, const char *headers, int fd);
 bool check_msgs(hstate *hst);
-char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua); // returns a malloc-like pointer
-void send_statsup(size_t bytes);
 ssize_t sendall(int sockfd, const void *buf, size_t length, int flags);
 
 int main(int argc, char **argv)
@@ -117,6 +116,8 @@ int main(int argc, char **argv)
 		hfin(EXIT_FAILURE);
 		return(EXIT_FAILURE);
 	}
+	struct timeval starttime, endtime;
+	gettimeofday(&starttime, NULL);
 	while(check_msgs(&hst));
 	if(hst.debug) fprintf(stderr, "horde: %s[%d]: read %u bytes\n", hst.name, getpid(), bi);
 	char **line=malloc(bi*sizeof(char *));
@@ -448,14 +449,25 @@ int main(int argc, char **argv)
 						return(EXIT_FAILURE);
 					}
 				}
-				if((status!=302)&&strcmp(ip, is6?"::1":"127.0.0.1")) // log everything except 302 Found and localhost
-				{
-					char *ll=logline(status, h->dlen, rpath, ip, "GET", ref, ua);
-					hmsg l=new_hmsg("log", ll);
-					free(ll);
-					hsend(1, l);
-					free_hmsg(l);
-				}
+				hmsg l=new_hmsg("tail", NULL);
+				char st[TL_SHORT], sz[TL_SIZET];
+				sprintf(st, "%hu", status);
+				add_htag(l, "status", st);
+				sprintf(sz, "%hu", h->dlen);
+				add_htag(l, "bytes", sz);
+				add_htag(l, "rpath", rpath);
+				add_htag(l, "ip", ip);
+				add_htag(l, "method", "GET");
+				add_htag(l, "referrer", ref);
+				add_htag(l, "user-agent", ua);
+				add_htag(l, "date", date);
+				gettimeofday(&endtime, NULL);
+				double dt=difftime(endtime.tv_sec, starttime.tv_sec)+(endtime.tv_usec-starttime.tv_usec)*1e-6;
+				char sdt[16];
+				snprintf(sdt, 16, "%.6g", dt);
+				add_htag(l, "time", sdt); // this is 'total processing time'
+				hsend(1, l);
+				free_hmsg(l);
 				free_hmsg(h);
 				free(rpath);
 			break;
@@ -548,32 +560,8 @@ bool check_msgs(hstate *hst)
 	return(false);
 }
 
-char *logline(unsigned int status, unsigned long length, const char *path, const char *ip, const char *ac, const char *ref, const char *ua)
-{
-	char date[256];
-	time_t timer = time(NULL);
-	struct tm *tm = gmtime(&timer);
-	size_t datelen = strftime(date, sizeof(date), "%F %H:%M:%S", tm);
-	char st[TL_LONG], sz[TL_LONG];
-	sprintf(st, "%u", status);
-	sprintf(sz, "%lu", length);
-	char *rv=malloc(strlen(ip)+1+datelen+1+strlen(st)+1+strlen(ac)+2+strlen(sz)+2+(path?strlen(path):1)+1+(ref?strlen(ref):2)+1+(ua?strlen(ua):2)+1);
-	sprintf(rv, "%s\t%s\t%s %s [%s] %s\t%s\t%s", ip, date, st, ac, sz, (path?path:"?"), (ref?ref:"--"), (ua?ua:".."));
-	return(rv);
-}
-
-void send_statsup(size_t bytes)
-{
-	hmsg h=new_hmsg("statsup", NULL);
-	char bt[TL_SIZET];
-	snprintf(bt, TL_SIZET, "%zu", bytes);
-	add_htag(h, "bytes_today", bt);
-	hsend(1, h);
-}
-
 ssize_t sendall(int sockfd, const void *buf, size_t length, int flags)
 {
-	send_statsup(length);
 	const char *p=buf;
 	ssize_t left=length;
 	ssize_t n;

@@ -5,7 +5,7 @@
 
 	Licensed under GNU GPLv3+; see top of horde.c for details
 	
-	log: append lines to the logfile
+	stats: keep track of simple server statistics (for now, just bytes_today)
 */
 
 #include <stdio.h>
@@ -17,12 +17,12 @@
 #include "libhorde.h"
 
 int handle(const char *inp);
-char *logfile; // we don't use hstate because we're an 'only', and we're atypical
+size_t bytes_today;
 
 int main(void)
 {
-	logfile=NULL;
-	FILE *rc=fopen("modules/core/log.rc", "r");
+	bytes_today=0;
+	FILE *rc=fopen("modules/core/stats.rc", "r");
 	if(rc)
 	{
 		char *line;
@@ -77,22 +77,42 @@ int handle(const char *inp)
 	{
 		if(strcmp(h->funct, "tail")==0)
 		{
-			if(h->data&&logfile)
+			const char /* *ip=gettag(h, "ip"), *st=gettag(h, "status"), *ac=gettag(h, "method"),*/ *sz=gettag(h, "bytes");
+			if(sz)
 			{
-				const char *ip=gettag(h, "ip"), *date=gettag(h, "date"), *st=gettag(h, "status"), *ac=gettag(h, "method"), *sz=gettag(h, "bytes"), *path=gettag(h, "rpath"), *ref=gettag(h, "referrer"), *ua=gettag(h, "user-agent");
-				if((strcmp(st, "302")!=0)&&(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0)) // Don't log 302 Found, nor localhost activity
-				{
-					FILE *f=fopen(logfile, "a");
-					if(f)
-					{
-						fprintf(f, "%s\t%s\t%s %s [%s] %s\t%s\t%s\n", ip, date, st, ac, sz, path?path:"?", ref?ref:"--", ua?ua:"..");
-						fclose(f);
-					}
-					else
-					{
-						fprintf(stderr, "horde: log[%d]: can't open log file\n", getpid());
-					}
-				}
+				size_t bytes=0;
+				sscanf(sz, "%zu", &bytes);
+				bytes_today+=bytes;
+			}
+			else
+				fprintf(stderr, "horde: stats[%d]: sz is NULL\n", getpid());
+		}
+		else if(strcmp(h->funct, "stats")==0)
+		{
+			const char *from=gettag(h, "from");
+			if(strcmp(h->data, "bytes_today")==0)
+			{
+				char rv[12];
+				if(bytes_today<2<<10)
+					snprintf(rv, 12, "%zu", bytes_today);
+				else if(bytes_today<2<<19)
+					snprintf(rv, 12, "%1.2fk", bytes_today/1024.0);
+				else if(bytes_today<2<<29)
+					snprintf(rv, 12, "%1.2fM", bytes_today/1048576.0);
+				else
+					snprintf(rv, 12, "%1.2fG", bytes_today/1073741824.0);
+				hmsg u=new_hmsg("stats", rv);
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
+			}
+			else
+			{
+				hmsg u=new_hmsg("err", "stats");
+				add_htag(u, "what", "unrecognised-arg");
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
 			}
 		}
 		else if(strcmp(h->funct, "shutdown")==0)
@@ -103,19 +123,10 @@ int handle(const char *inp)
 		{
 			errupt++;
 		}
-		else if(strcmp(h->funct, "logf")==0)
+		else if(strcmp(h->funct, "pulse")==0)
 		{
-			if(h->data)
-			{
-				char *nf=strdup(h->data);
-				if(!nf)
-				{
-					hfin(EXIT_FAILURE);
-					return(EXIT_FAILURE);
-				}
-				if(logfile) free(logfile);
-				logfile=nf;
-			}
+			if(strcmp(h->data, "midnight")==0)
+				bytes_today=0;
 		}
 		free_hmsg(h);
 	}

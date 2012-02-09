@@ -40,6 +40,13 @@
 
 #define CWD_BUF_SIZE	4096
 
+typedef enum
+{
+	PULSER_NONE,
+	PULSER_MIDNIGHT,
+}
+pulser;
+
 typedef struct
 {
 	pid_t pid;
@@ -47,6 +54,8 @@ typedef struct
 	int pipe[2];
 	enum {NONE, INP, SOCK} special;
 	bool accepting; // for 'net's and handling accept()s on SOCKs; (ready) status on all others
+	pulser pulse;
+	bool tail;
 	bool autoreplace;
 	pid_t blocks; // who is blocking on us?
 	unsigned long t_micro;
@@ -61,6 +70,8 @@ typedef struct
 	unsigned int n_init;
 	hmsg *init;
 	bool only; // only run one instance of this worker?
+	pulser pulse;
+	bool tail;
 }
 handler;
 
@@ -79,8 +90,6 @@ int handle_add(const hmsg h);
 int handle_workers(hmsg h);
 
 void uptime_respond(unsigned int w, hmsg h, time_t upsince);
-void stats_respond(unsigned int w, hmsg h);
-void statsup(hmsg h);
 
 unsigned int nworkers;
 worker *workers;
@@ -89,7 +98,6 @@ handler *handlers;
 
 bool debug, pipeline, transcript;
 const char *root, *host;
-size_t maxbytesdaily, bytes_today;
 unsigned long net_micro, net_rqs;
 
 int main(int argc, char **argv)
@@ -110,8 +118,6 @@ int main(int argc, char **argv)
 	root="root"; // virtual root
 	uid_t realuid=65534; // less-privileged uid, default 'nobody'
 	gid_t realgid=65534; // less-privileged gid, default 'nogroup'
-	maxbytesdaily=1<<29; // daily bandwidth limiter, default 0.5GB
-	bytes_today=0;
 	debug=false; // write debugging info to stderr?
 	transcript=false; // write extra info?
 	pipeline=true; // run daemons in pipelined mode? (generally preferred for efficiency reasons; however debugging may be easier in single-invoke mode)
@@ -131,8 +137,6 @@ int main(int argc, char **argv)
 			sscanf(varg+6, "%u", (unsigned int*)&realuid);
 		else if(strncmp(varg, "--gid=", 6)==0)
 			sscanf(varg+6, "%u", (unsigned int*)&realgid);
-		else if(strncmp(varg, "--mbd=", 6)==0)
-			sscanf(varg+6, "%zu", &maxbytesdaily);
 		else if(strcmp(varg, "--debug")==0)
 			debug=true;
 		else if(strcmp(varg, "--no-debug")==0)
@@ -207,13 +211,13 @@ int main(int argc, char **argv)
 	nworkers=0;
 	workers=NULL;
 	{
-		worker inp=(worker){.pid=0, .prog=NULL, .name="<stdin>", .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false};
+		worker inp=(worker){.pid=0, .prog=NULL, .name="<stdin>", .pipe={STDIN_FILENO, STDOUT_FILENO}, .special=INP, .autoreplace=false, .tail=false, .pulse=PULSER_NONE};
 		if(addworker(inp)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on INP\n");
 			return(EXIT_FAILURE);
 		}
-		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .accepting=true, .autoreplace=true};
+		worker sock=(worker){.pid=0, .prog=NULL, .name="<socket>", .pipe={sockfd, sockfd}, .special=SOCK, .accepting=true, .autoreplace=true, .tail=false, .pulse=PULSER_NONE};
 		if(addworker(sock)<0)
 		{
 			fprintf(stderr, "horde: addworker failed on SOCK\n");
@@ -271,7 +275,15 @@ int main(int argc, char **argv)
 		if((now/86400)>(last_midnight/86400)) // reset b_s_m counter at midnight
 		{
 			last_midnight=now;
-			bytes_today=0;
+			for(unsigned int w=0;w<nworkers;w++)
+			{
+				if(workers[w].pulse==PULSER_MIDNIGHT)
+				{
+					hmsg p=new_hmsg("pulse", "midnight");
+					hsend(workers[w].pipe[1], p);
+					free_hmsg(p);
+				}
+			}
 		}
 		timeout.tv_sec=0;
 		timeout.tv_usec=250000;
@@ -287,8 +299,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			int rfd;
-			for(rfd=0;rfd<=fdmax;rfd++)
+			for(int rfd=0;rfd<=fdmax;rfd++)
 			{
 				if(FD_ISSET(rfd, &readfds))
 				{
@@ -426,8 +437,7 @@ int main(int argc, char **argv)
 										}
 										else if(strcmp(h->funct, "accepted")==0)
 										{
-											unsigned int wsock;
-											for(wsock=0;wsock<nworkers;wsock++)
+											for(unsigned int wsock=0;wsock<nworkers;wsock++)
 											{
 												if(workers[wsock].special==SOCK)
 													workers[wsock].accepting=true;
@@ -435,10 +445,17 @@ int main(int argc, char **argv)
 										}
 										else if(strcmp(h->funct, "uptime")==0)
 											uptime_respond(w, h, upsince);
-										else if(strcmp(h->funct, "stats")==0)
-											stats_respond(w, h);
-										else if(strcmp(h->funct, "statsup")==0)
-											statsup(h);
+										else if(strcmp(h->funct, "tail")==0)
+										{
+											char *from=malloc(16+strlen(workers[w].name));
+											sprintf(from, "%s[%u]", workers[w].name, workers[w].pid);
+											add_htag(h, "from", from);
+											for(unsigned int wtail=0;wtail<nworkers;wtail++)
+											{
+												if(workers[wtail].tail)
+													hsend(workers[wtail].pipe[1], h);
+											}
+										}
 										else if(strcmp(h->funct, "err")==0)
 										{
 											fprintf(stderr, "horde: err without to, dropping (from %s[%u])\n", workers[w].name, workers[w].pid);
@@ -743,7 +760,7 @@ int handle(const char *inp, const char *file)
 
 int handle_add(const hmsg h)
 {
-	handler newh=(handler){.name=NULL, .prog=NULL, .n_init=0, .init=NULL, .only=false};
+	handler newh=(handler){.name=NULL, .prog=NULL, .n_init=0, .init=NULL, .only=false, .tail=false, .pulse=PULSER_NONE};
 	unsigned int i;
 	for(i=0;i<h->nparms;i++)
 	{
@@ -760,6 +777,28 @@ int handle_add(const hmsg h)
 		else if(strcmp(h->p_tag[i], "only")==0)
 		{
 			newh.only=true;
+		}
+		else if(strcmp(h->p_tag[i], "tail")==0)
+		{
+			newh.tail=true;
+		}
+		else if(strcmp(h->p_tag[i], "pulse")==0)
+		{
+			if(h->p_value[i])
+			{
+				if(strcmp(h->p_value[i], "midnight")==0)
+					newh.pulse=PULSER_MIDNIGHT;
+				else
+				{
+					fprintf(stderr, "horde: bad 'pulse' \"%s\"\n", h->p_value[i]);
+					return(1);
+				}
+			}
+			else
+			{
+				fprintf(stderr, "horde: 'pulse' without value\n");
+				return(1);
+			}
 		}
 		else if(strcmp(h->p_tag[i], "stdinit")==0)
 		{
@@ -986,6 +1025,7 @@ signed int find_worker(const char *name, bool creat, int *fdmax, fd_set *fds)
 	for(w=0;w<nworkers;w++)
 	{
 		if(!workers[w].accepting) continue;
+		if(workers[w].name==NULL) continue;
 		if(strcmp(workers[w].name, name)==0)
 			return(w);
 	}
@@ -994,6 +1034,7 @@ signed int find_worker(const char *name, bool creat, int *fdmax, fd_set *fds)
 		unsigned int h;
 		for(h=0;h<nhandlers;h++)
 		{
+			if(handlers[h].name==NULL) continue;
 			if(strcmp(handlers[h].name, name)==0)
 			{
 				pid_t p=do_fork(handlers[h].prog, handlers[h].name, 0, &w);
@@ -1002,6 +1043,8 @@ signed int find_worker(const char *name, bool creat, int *fdmax, fd_set *fds)
 					if(debug) fprintf(stderr, "horde: started new instance of %s[%u]\n", name, p);
 					workers[w].autoreplace=handlers[h].only;
 					workers[w].accepting=true;
+					workers[w].pulse=handlers[h].pulse;
+					workers[w].tail=handlers[h].tail;
 					if(worker_set(fdmax, fds))
 					{
 						fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
@@ -1082,44 +1125,4 @@ void uptime_respond(unsigned int w, hmsg h, time_t upsince)
 	free(rv);
 	hsend(workers[w].pipe[1], u);
 	free_hmsg(u);
-}
-
-void stats_respond(unsigned int w, hmsg h)
-{
-	if(strcmp(h->data, "bytes_today")==0)
-	{
-		char rv[12];
-		if(bytes_today<2<<10)
-			snprintf(rv, 12, "%zu", bytes_today);
-		else if(bytes_today<2<<19)
-			snprintf(rv, 12, "%1.2fk", bytes_today/1024.0);
-		else if(bytes_today<2<<29)
-			snprintf(rv, 12, "%1.2fM", bytes_today/1048576.0);
-		else
-			snprintf(rv, 12, "%1.2fG", bytes_today/1073741824.0);
-		hmsg u=new_hmsg("stats", rv);
-		hsend(workers[w].pipe[1], u);
-		free_hmsg(u);
-	}
-	else
-	{
-		hmsg u=new_hmsg("err", "stats");
-		if(u) add_htag(u, "what", "unrecognised-arg");
-		hsend(workers[w].pipe[1], u);
-		free_hmsg(u);
-	}
-}
-
-void statsup(hmsg h)
-{
-	for(unsigned int i=0;i<h->nparms;i++)
-	{
-		if(strcmp(h->p_tag[i], "bytes_today")==0)
-		{
-			size_t morebytes;
-			if(sscanf(h->p_value[i], "%zu", &morebytes)==1)
-				bytes_today+=morebytes;
-			continue;
-		}
-	}
 }
