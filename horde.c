@@ -462,7 +462,10 @@ int main(int argc, char **argv)
 											for(unsigned int wtail=0;wtail<nworkers;wtail++)
 											{
 												if(workers[wtail].tail)
+												{
+													if(debug) fprintf(stderr, "horde: sending tail to %s[%u]\n", workers[wtail].name, workers[wtail].pid);
 													hsend(workers[wtail].pipe[1], h);
+												}
 											}
 										}
 										else if(strcmp(h->funct, "err")==0)

@@ -77,7 +77,7 @@ int handle(const char *inp)
 	{
 		if(strcmp(h->funct, "tail")==0)
 		{
-			if(h->data&&logfile)
+			if(logfile)
 			{
 				const char *ip=gettag(h, "ip"), *date=gettag(h, "date"), *st=gettag(h, "status"), *ac=gettag(h, "method"), *sz=gettag(h, "bytes"), *path=gettag(h, "rpath"), *ref=gettag(h, "referrer"), *ua=gettag(h, "user-agent");
 				if((strcmp(st, "302")!=0)&&(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0)) // Don't log 302 Found, nor localhost activity
