@@ -14,6 +14,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <dirent.h>
 
 #include "bits.h"
@@ -21,6 +22,7 @@
 
 #define MAXBLOBLEN	(1<<16) // the maximum length of a file to send in-band unprocessed (instead of using 'read').  If any processing is needed, this is ignored
 #define CWD_BUF_SIZE	4096
+#define LINK_BUF_SIZE	4096
 
 typedef struct
 {
@@ -401,6 +403,72 @@ int handle(const char *inp, hstate *hst, bool rc)
 					else
 					{
 						isdir=stbuf.st_mode&S_IFDIR;
+					}
+					if(stbuf.st_mode&S_IFLNK)
+					{
+						char *lpath=malloc(stbuf.st_size+1);
+						if(lpath)
+						{
+							ssize_t b=readlink(path, lpath, stbuf.st_size);
+							if((b!=-1)&&(lpath[0]!='/'))
+							{
+								lpath[b]=0;
+								char *ipath=malloc(strlen(h->data)+strlen(lpath)+1);
+								if(ipath)
+								{
+									strcpy(ipath, h->data);
+									char *slash=strrchr(ipath, '/');
+									if(slash) slash[1]=0;
+									strcat(ipath, lpath);
+									hmsg r=new_hmsg("proc", NULL);
+									char st[TL_SHORT];
+									hputshort(st, 302);
+									add_htag(r, "status", st);
+									add_htag(r, "statusmsg", "Found");
+									char *loc=malloc(10+strlen(ipath)+1);
+									if(!loc)
+									{
+										hmsg r=new_hmsg("err", NULL);
+										add_htag(r, "what", "allocation-failure");
+										if(from) add_htag(r, "to", from);
+										hsend(1, r);
+										free_hmsg(r);
+									}
+									else
+									{
+										sprintf(loc, "Location: %s", ipath);
+										add_htag(r, "header", loc);
+										free(loc);
+										if(from) add_htag(r, "to", from);
+										hsend(1, r);
+										free_hmsg(r);
+										free(ipath);
+										free(lpath);
+										free(path);
+										goto procdone;
+									}
+									free_hmsg(r);
+								}
+								else
+								{
+									hmsg r=new_hmsg("err", NULL);
+									add_htag(r, "what", "allocation-failure");
+									if(from) add_htag(r, "to", from);
+									hsend(1, r);
+									free_hmsg(r);
+								}
+								free(ipath);
+							}
+						}
+						else
+						{
+							hmsg r=new_hmsg("err", NULL);
+							add_htag(r, "what", "allocation-failure");
+							if(from) add_htag(r, "to", from);
+							hsend(1, r);
+							free_hmsg(r);
+						}
+						free(lpath);
 					}
 					if(isdir)
 					{
