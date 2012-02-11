@@ -451,9 +451,9 @@ int main(int argc, char **argv)
 				}
 				hmsg l=new_hmsg("tail", NULL);
 				char st[TL_SHORT], sz[TL_SIZET];
-				sprintf(st, "%hu", status);
+				snprintf(st, sizeof(st), "%hu", status);
 				add_htag(l, "status", st);
-				sprintf(sz, "%hu", h->dlen);
+				snprintf(sz, sizeof(sz), "%zu", h->dlen);
 				add_htag(l, "bytes", sz);
 				if(rpath) add_htag(l, "rpath", rpath);
 				if(ip) add_htag(l, "ip", ip);
@@ -464,7 +464,7 @@ int main(int argc, char **argv)
 				gettimeofday(&endtime, NULL);
 				double dt=difftime(endtime.tv_sec, starttime.tv_sec)+(endtime.tv_usec-starttime.tv_usec)*1e-6;
 				char sdt[16];
-				snprintf(sdt, 16, "%.6g", dt);
+				snprintf(sdt, sizeof(sdt), "%.6g", dt);
 				add_htag(l, "time", sdt); // this is 'total processing time'
 				hsend(1, l);
 				free_hmsg(l);
