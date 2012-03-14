@@ -193,6 +193,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 	if(h)
 	{
 		const char *from=gettag(h, "from");
+		const char *rqpath=gettag(h, "rqpath");
 		unsigned short status=200;
 		const char *statusmsg=gettag(h, "statusmsg");
 		unsigned int i;
@@ -292,6 +293,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 				add_htag(r, "status", st);
 				add_htag(r, "statusmsg", "Bad Request");
 				if(from) add_htag(r, "from", from);
+				if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 				hsend(1, r);
 				free_hmsg(r);
 			}
@@ -300,6 +302,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 				hmsg r=new_hmsg("err", NULL);
 				add_htag(r, "what", "illegal-path"); // this shouldn't ever happen, hence why we report instead of giving a 4xx
 				if(from) add_htag(r, "to", from);
+				if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 				hsend(1, r);
 				free_hmsg(r);
 			}
@@ -311,6 +314,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 					hmsg r=new_hmsg("err", NULL);
 					add_htag(r, "what", "allocation-failure");
 					if(from) add_htag(r, "to", from);
+					if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 					hsend(1, r);
 					free_hmsg(r);
 				}
@@ -335,6 +339,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
 									if(from) add_htag(r, "from", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -347,6 +352,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -359,6 +365,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -371,6 +378,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 										hmsg r=new_hmsg("err", NULL);
 										add_htag(r, "what", "allocation-failure");
 										if(from) add_htag(r, "to", from);
+										if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 										hsend(1, r);
 										free_hmsg(r);
 									}
@@ -383,6 +391,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 										add_htag(r, "status", st);
 										add_htag(r, "statusmsg", statusmsg);
 										if(from) add_htag(r, "to", from);
+										if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									}
 								}
 							break;
@@ -393,6 +402,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 								hputlong(en, errno);
 								add_htag(r, "errno", en);
 								if(from) add_htag(r, "to", from);
+								if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 								hsend(1, r);
 								free_hmsg(r);
 							break;
@@ -431,6 +441,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 										hmsg r=new_hmsg("err", NULL);
 										add_htag(r, "what", "allocation-failure");
 										if(from) add_htag(r, "to", from);
+										if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 										hsend(1, r);
 										free_hmsg(r);
 									}
@@ -440,6 +451,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 										add_htag(r, "header", loc);
 										free(loc);
 										if(from) add_htag(r, "to", from);
+										if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 										hsend(1, r);
 										free_hmsg(r);
 										free(ipath);
@@ -454,6 +466,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									hmsg r=new_hmsg("err", NULL);
 									add_htag(r, "what", "allocation-failure");
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -465,6 +478,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 							hmsg r=new_hmsg("err", NULL);
 							add_htag(r, "what", "allocation-failure");
 							if(from) add_htag(r, "to", from);
+							if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 							hsend(1, r);
 							free_hmsg(r);
 						}
@@ -478,6 +492,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 							hmsg r=new_hmsg("err", NULL);
 							add_htag(r, "what", "allocation-failure");
 							if(from) add_htag(r, "to", from);
+							if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 							hsend(1, r);
 							free_hmsg(r);
 						}
@@ -492,6 +507,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 								add_htag(r, "status", st);
 								add_htag(r, "statusmsg", "Forbidden");
 								if(from) add_htag(r, "from", from);
+								if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 								hsend(1, r);
 								free_hmsg(r);
 							}
@@ -508,6 +524,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									hmsg r=new_hmsg("err", NULL);
 									add_htag(r, "what", "allocation-failure");
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -517,6 +534,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "header", loc);
 									free(loc);
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								}
@@ -539,6 +557,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Not Found");
 									if(from) add_htag(r, "from", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								break;
@@ -548,6 +567,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									add_htag(r, "status", st);
 									add_htag(r, "statusmsg", "Forbidden");
 									if(from) add_htag(r, "from", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								break;
@@ -558,6 +578,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 									hputlong(en, errno);
 									add_htag(r, "errno", en);
 									if(from) add_htag(r, "to", from);
+									if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 									hsend(1, r);
 									free_hmsg(r);
 								break;
@@ -625,6 +646,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 														add_htag(eh, "chld", "ext");
 														add_htag(eh, "err", inp2);
 														if(from) add_htag(eh, "to", from);
+														if(rqpath) add_htag(eh, "rqpath", rqpath); else add_htag(eh, "rqpath", h->data);
 														hsend(1, eh);
 														free_hmsg(eh);
 													}
@@ -651,6 +673,7 @@ int handle(const char *inp, hstate *hst, bool rc)
 								hmsg r=new_hmsg("err", NULL);
 								add_htag(r, "what", "allocation-failure");
 								if(from) add_htag(r, "to", from);
+								if(rqpath) add_htag(r, "rqpath", rqpath); else add_htag(r, "rqpath", h->data);
 								hsend(1, r);
 								free_hmsg(r);
 							}
@@ -677,6 +700,9 @@ int handle(const char *inp, hstate *hst, bool rc)
 									if((strcmp(h->p_tag[i], "from")!=0)&&(strcmp(h->p_tag[i], "to")!=0))
 										add_htag(r, h->p_tag[i], h->p_value[i]);
 								}
+								if(!rqpath) add_htag(r, "rqpath", h->data);
+								else add_htag(r, "rqpath", rqpath);
+								add_htag(r, "rspath", h->data);
 								unsigned int proc;
 								for(proc=0;proc<nprocs;proc++)
 								{
@@ -690,7 +716,6 @@ int handle(const char *inp, hstate *hst, bool rc)
 											if((strcmp(r->p_tag[i], "from")!=0)&&(strcmp(r->p_tag[i], "to")!=0))
 												add_htag(fh, r->p_tag[i], r->p_value[i]);
 										}
-										add_htag(fh, "rqpath", h->data);
 										hsend(1, fh);
 										free_hmsg(fh);
 										processed=true;

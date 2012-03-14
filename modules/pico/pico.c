@@ -143,7 +143,7 @@ void handle(const char *inp, hstate *hst)
 char *picofy(const hmsg h, hstate *hst)
 {
 	const char *ua=NULL;
-	const char *rqpath=NULL;
+	const char *rqpath=gettag(h, "rqpath"), *rspath=gettag(h, "rspath");
 	for(unsigned int i=0;i<h->nparms;i++)
 	{
 		//if(hst->debug) fprintf(stderr, "horde: %s[%d]: \t (%s|%s)\n", hst->name, getpid(), h->p_tag[i], h->p_value[i]);
@@ -156,10 +156,6 @@ char *picofy(const hmsg h, hstate *hst)
 			if(hdr==HTTP_HEADER_USER_AGENT)
 				ua=h->p_value[i]+colon;
 			free(hname);
-		}
-		else if(strcmp(h->p_tag[i], "rqpath")==0)
-		{
-			rqpath=h->p_value[i];
 		}
 	}
 	char *rv;
@@ -324,6 +320,8 @@ char *picofy(const hmsg h, hstate *hst)
 				}
 				else if(strcmp(d, "rqpath")==0)
 					append_str(&rv, &l, &i, rqpath?rqpath:"");
+				else if(strcmp(d, "rspath")==0)
+					append_str(&rv, &l, &i, rspath?rspath:rqpath?rqpath:"");
 				else if(strcmp(d, "host")==0)
 					append_str(&rv, &l, &i, hst->host);
 				else if(strcmp(d, "now")==0)
