@@ -1142,6 +1142,32 @@ http_method get_method(const char *name)
 	return(HTTP_METHOD_UNKNOWN);
 }
 
+const char *method_name(http_method m)
+{
+	switch(m)
+	{
+		case HTTP_METHOD_UNKNOWN:
+			return("unknown");
+		case HTTP_METHOD_OPTIONS:
+			return("OPTIONS");
+		case HTTP_METHOD_GET:
+			return("GET");
+		case HTTP_METHOD_HEAD:
+			return("HEAD");
+		case HTTP_METHOD_POST:
+			return("POST");
+		case HTTP_METHOD_PUT:
+			return("PUT");
+		case HTTP_METHOD_DELETE:
+			return("DELETE");
+		case HTTP_METHOD_TRACE:
+			return("TRACE");
+		case HTTP_METHOD_CONNECT:
+			return("CONNECT");
+	}
+	return(NULL);
+}
+
 http_version get_version(const char *name)
 {
 	if(strcmp(name, "HTTP/0.1")==0) return(HTTP_VERSION_0_1);

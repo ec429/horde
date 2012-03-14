@@ -128,6 +128,7 @@ ssize_t hsend(int fd, const hmsg h);
 void hfin(unsigned char status);
 
 http_method get_method(const char *name);
+const char *method_name(http_method m);
 http_version get_version(const char *name);
 http_header get_header(const char *name);
 const char *http_statusmsg(unsigned int status); // returns a static string (do not free()!)
