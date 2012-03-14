@@ -1,5 +1,10 @@
 Release Notes for recent versions
 
+0.0.7	2012-03-14
+Improved the hmsg format; it now properly escapes special characters in both data and htag values.  Moreover, htag values may now contain embedded NULs.
+rqpath now behaves correctly (it's no longer overwritten by redirects).  The response path (more like the previous semantics) is given as rspath.
+Relative symlinks are now interpreted by proc as a directive to issue a 302 redirect; symlink paths containing "/./" or "/../" may cause errors or misbehaviour.
+
 0.0.6	2012-02-09
 Fixed some bugs with logging (and the (tail) call generally).
 
