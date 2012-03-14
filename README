@@ -49,13 +49,25 @@ Variables are provided by the calling environment (in this case 'proc', but the 
 
 Pitfalls:
 ---------
-libhorde's hmsg allows embedded NULs in data, thanks to hmsg->dlen by way of new_hmsg_d().  BUT... it doesn't allow them in htags, which should be purely textual.
+libhorde's hmsg allows embedded NULs in data, thanks to hmsg->dlen by way of new_hmsg_d().  Similarly, it allows them in htag values.  BUT... it doesn't allow them in funct or htag names, which should be purely textual.
 On a related note, some preprocessors (namely, those operating only on textual data, and which will typically only be /called/ for textual data) can pretend all-the-world's-a-Cstring, and ignore the possibility of NULs - after all, who passes an image file to a preprocessor?  You may, however, feel that robustness is worth the slight extra complication involved in using hmsg->dlen.
 Another way to pass binary data, rather than using new_hmsg_d(), is to use the (read) tag, and either a file on disk or a FIFO (named pipe); this will be abstracted away on the receiving side by libhorde.  Notice however that this facility means that hmsg_from_str() can block (because it's reading from a file which might be a pipe).
 
+hmsg format:
+------------
+An hmsg (pronounced 'aitch-message') consists of 'funct', 'data', and a list of 'htags', each of which is a key-value pair.
+'funct' and the htag names (keys) are purely textual and may not contain parens, newlines or NULs.
+'data' and the htag values may contain any character; on the wire these are escaped as follows:
+	NUL		-> \0
+	newline	-> \n
+	(		-> \[
+	)		-> \]
+	\		-> \\
+The representation of an hmsg is as follows:
+	(funct (htag-name htag-value) (htag-name htag-value) data)
+
 Plans:
 ------
-TODO: replace the hex-encoding with escaping (it's much more textual)
 TODO: make the libhorde interfaces use string structs (rather than having the new_hmsg and new_hmsg_d profusion)
 TODO: cull excessive idle workers
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
@@ -67,7 +79,7 @@ TODO: Bernstein chaining - have a launcher that binds the socket, drops privs, t
 
 Sample Transcript:
 ------------------
-This section is not entirely accurate: the following transcript, while a reasonable way of doing things, does not correspond to the current implementation (for instance, path resolution in this case actually triggers a 302; proc doesn't use a sock_un but instead reads/writes the data through disp).  The name 'disp' is used to represent the dispatcher, whose actual executable name is 'horde'.  This transcript was originally produced not for documentation but as a rough specification of "how things should work" during the early stages of development.
+This section is not entirely accurate: the following transcript, while a reasonable way of doing things, does not correspond to the current implementation (for instance, path resolution in this case actually triggers a 302; proc doesn't use a sock_un but instead reads/writes the data through disp; we now escape special chars in messages instead of hex-encoding the whole string; rather than having a hard-coded 'stats' call, we have a '(tail) call' mechanism for registering arbitrary callbacks).  The name 'disp' is used to represent the dispatcher, whose actual executable name is 'horde'.  This transcript was originally produced not for documentation but as a rough specification of "how things should work" during the early stages of development.
 
 Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces or begin with a '#' (wh. is used to indicate hex-encoding).  User-input data may be hex-encoded unnecessarily.  [] denotes variables.
 	disp fork() exec(path)

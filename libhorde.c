@@ -9,42 +9,6 @@
 */
 #include "libhorde.h"
 
-char *hex_encode(const char *src, size_t srclen)
-{
-	if(!src||!srclen)
-		return(NULL);
-	char *rv;unsigned int l,i;
-	init_char(&rv, &l, &i);
-	unsigned int p;
-	for(p=0;p<srclen;p++)
-	{
-		unsigned char c=src[p];
-		char hex[3];
-		snprintf(hex, 3, "%02x", c);
-		append_str(&rv, &l, &i, hex);
-	}
-	return(rv);
-}
-
-char *hex_decode(const char *src, size_t srclen)
-{
-	if(!src||!srclen||(srclen&1))
-		return(NULL);
-	char *rv;unsigned int l,i;
-	init_char(&rv, &l, &i);
-	unsigned int p;
-	for(p=0;p<srclen;p+=2)
-	{
-		unsigned int c;
-		const char hex[3]={src[p], src[p+1], 0};
-		if(!isxdigit(hex[0])) {free(rv); return(NULL);}
-		if(!isxdigit(hex[1])) {free(rv); return(NULL);}
-		sscanf(hex, "%02x", &c);
-		append_char(&rv, &l, &i, (unsigned char)c);
-	}
-	return(rv);
-}
-
 void hputlong(char *buf, unsigned long val)
 {
 	snprintf(buf, TL_LONG-1, "%lu", val);
@@ -87,6 +51,7 @@ hmsg new_hmsg(const char *funct, const char *data)
 		}
 		rv->nparms=0;
 		rv->p_tag=rv->p_value=NULL;
+		rv->p_vlen=NULL;
 	}
 	return(rv);
 }
@@ -111,6 +76,7 @@ hmsg new_hmsg_d(const char *funct, const char *data, size_t dlen)
 		}
 		rv->nparms=0;
 		rv->p_tag=rv->p_value=NULL;
+		rv->p_vlen=NULL;
 	}
 	return(rv);
 }
@@ -133,8 +99,62 @@ int add_htag(hmsg h, const char *p_tag, const char *p_value)
 		return(-1);
 	}
 	h->p_value=n_value;
+	size_t *n_vlen=realloc(h->p_vlen, h->nparms*sizeof(*h->p_vlen));
+	if(!n_vlen)
+	{
+		h->nparms=parm;
+		return(-1);
+	}
+	h->p_vlen=n_vlen;
 	if(p_tag) h->p_tag[parm]=strdup(p_tag); else h->p_tag[parm]=NULL;
 	if(p_value) h->p_value[parm]=strdup(p_value); else h->p_value[parm]=NULL;
+	if(p_value) h->p_vlen[parm]=strlen(p_value); else h->p_vlen[parm]=0;
+	return(0);
+}
+
+int add_htag_d(hmsg h, const char *p_tag, const char *p_value, size_t p_vlen)
+{
+	if(!h) return(-1);
+	unsigned int parm=h->nparms++;
+	char **n_tag=realloc(h->p_tag, h->nparms*sizeof(*h->p_tag));
+	if(!n_tag)
+	{
+		h->nparms=parm;
+		return(-1);
+	}
+	h->p_tag=n_tag;
+	char **n_value=realloc(h->p_value, h->nparms*sizeof(*h->p_value));
+	if(!n_value)
+	{
+		h->nparms=parm;
+		return(-1);
+	}
+	h->p_value=n_value;
+	size_t *n_vlen=realloc(h->p_vlen, h->nparms*sizeof(*h->p_vlen));
+	if(!n_vlen)
+	{
+		h->nparms=parm;
+		return(-1);
+	}
+	h->p_vlen=n_vlen;
+	if(p_tag) h->p_tag[parm]=strdup(p_tag); else h->p_tag[parm]=NULL;
+	if(p_value)
+	{
+		h->p_vlen[parm]=p_vlen;
+		h->p_value[parm]=malloc(p_vlen+1);
+		if(!h->p_value[parm])
+		{
+			h->nparms=parm;
+			return(-1);
+		}
+		memcpy(h->p_value[parm], p_value, p_vlen);
+		h->p_value[parm][p_vlen]=0;
+	}
+	else
+	{
+		h->p_value[parm]=NULL;
+		h->p_vlen[parm]=0;
+	}
 	return(0);
 }
 
@@ -144,51 +164,82 @@ char *str_from_hmsg(const hmsg h)
 	char *rv; unsigned int l,i;
 	init_char(&rv, &l, &i);
 	append_char(&rv, &l, &i, '(');
-	append_str(&rv, &l, &i, h->funct?h->funct:"(nil)");
+	append_str(&rv, &l, &i, h->funct?h->funct:"nil");
 	unsigned int p;
 	for(p=0;p<h->nparms;p++)
 	{
 		append_char(&rv, &l, &i, ' ');
 		append_char(&rv, &l, &i, '(');
-		append_str(&rv, &l, &i, h->p_tag&&h->p_tag[p]?h->p_tag[p]:"(nil)");
+		append_str(&rv, &l, &i, h->p_tag&&h->p_tag[p]?h->p_tag[p]:"nil");
 		if(h->p_value&&h->p_value[p])
 		{
-			if((h->p_value[p][0]=='#') || (strpbrk(h->p_value[p], "( )")))
+			append_char(&rv, &l, &i, ' ');
+			const char *v=h->p_value[p];
+			while(*v)
 			{
-				char *val=hex_encode(h->p_value[p], strlen(h->p_value[p]));
-				if(val)
+				switch(*v)
 				{
-					append_char(&rv, &l, &i, ' ');
-					append_char(&rv, &l, &i, '#');
-					append_str(&rv, &l, &i, val);
-					free(val);
+					case 0:
+						append_char(&rv, &l, &i, '\\');
+						append_char(&rv, &l, &i, '0');
+					break;
+					case '\n':
+						append_char(&rv, &l, &i, '\\');
+						append_char(&rv, &l, &i, 'n');
+					break;
+					case '(':
+						append_char(&rv, &l, &i, '\\');
+						append_char(&rv, &l, &i, '[');
+					break;
+					case ')':
+						append_char(&rv, &l, &i, '\\');
+						append_char(&rv, &l, &i, ']');
+					break;
+					case '\\':
+						append_char(&rv, &l, &i, '\\');
+						/* fallthrough */
+					default:
+						append_char(&rv, &l, &i, *v);
+					break;
 				}
-			}
-			else
-			{
-				append_char(&rv, &l, &i, ' ');
-				append_str(&rv, &l, &i, h->p_value[p]);
+				v++;
 			}
 		}
 		append_char(&rv, &l, &i, ')');
 	}
 	if(h->data)
 	{
-		if((h->data[0]=='#') || (strpbrk(h->data, "( )")) || (h->dlen!=strlen(h->data)))
+		append_char(&rv, &l, &i, ' ');
+		const char *v=h->data;
+		size_t p=0;
+		while(p<h->dlen)
 		{
-			char *val=hex_encode(h->data, h->dlen);
-			if(val)
+			switch(v[p])
 			{
-				append_char(&rv, &l, &i, ' ');
-				append_char(&rv, &l, &i, '#');
-				append_str(&rv, &l, &i, val);
-				free(val);
+				case 0:
+					append_char(&rv, &l, &i, '\\');
+					append_char(&rv, &l, &i, '0');
+				break;
+				case '\n':
+					append_char(&rv, &l, &i, '\\');
+					append_char(&rv, &l, &i, 'n');
+				break;
+				case '(':
+					append_char(&rv, &l, &i, '\\');
+					append_char(&rv, &l, &i, '[');
+				break;
+				case ')':
+					append_char(&rv, &l, &i, '\\');
+					append_char(&rv, &l, &i, ']');
+				break;
+				case '\\':
+					append_char(&rv, &l, &i, '\\');
+					/* fallthrough */
+				default:
+					append_char(&rv, &l, &i, v[p]);
+				break;
 			}
-		}
-		else
-		{
-			append_char(&rv, &l, &i, ' ');
-			append_str(&rv, &l, &i, h->data);
+			p++;
 		}
 	}
 	append_char(&rv, &l, &i, ')');
@@ -296,10 +347,6 @@ hmsg hmsg_from_str(const char *str, bool read)
 					case ')':
 						return(read?hmsg_read(rv):rv); // no data segment
 					break;
-					case '#':
-						state=5;
-						curr=p+1;
-					break;
 					default:
 						if(!isspace(*p))
 						{
@@ -307,14 +354,6 @@ hmsg hmsg_from_str(const char *str, bool read)
 							curr=p;
 						}
 					break;
-				}
-			break;
-			case 5:
-				if(*p==')')
-				{
-					rv->data=hex_decode(curr, p-curr);
-					rv->dlen=(p-curr)>>1;
-					return(rv);
 				}
 			break;
 			case 6:
@@ -330,10 +369,6 @@ hmsg hmsg_from_str(const char *str, bool read)
 						add_htag(rv, htag, NULL);
 						free(htag);
 						state=7;
-					break;
-					case '#':
-						state=8;
-						curr=p+1;
 					break;
 					default:
 						if(!isspace(*p))
@@ -357,22 +392,43 @@ hmsg hmsg_from_str(const char *str, bool read)
 					}
 				}
 			break;
-			case 8:
-				if(*p==')')
-				{
-					char *htag=strndup(tag, tage-tag);
-					char *hval=hex_decode(curr, p-curr);
-					add_htag(rv, htag, hval);
-					if(htag) free(htag);
-					if(hval) free(hval);
-					state=7;
-				}
-			break;
 			case 9:
 				if(*p==')')
 				{
 					rv->data=strndup(curr, p-curr);
 					rv->dlen=p-curr;
+					size_t in=0, out=0;
+					while(in<rv->dlen)
+					{
+						if(rv->data[in]=='\\')
+						{
+							switch(rv->data[++in])
+							{
+								case '0':
+									rv->data[out++]=0;
+								break;
+								case 'n':
+									rv->data[out++]='\n';
+								break;
+								case '[':
+									rv->data[out++]='(';
+								break;
+								case ']':
+									rv->data[out++]=')';
+								break;
+								case '\\':
+									/* fallthrough */
+								default:
+									rv->data[out++]=rv->data[in];
+								break;
+							}
+						}
+						else
+							rv->data[out++]=rv->data[in];
+						in++;
+					}
+					rv->data[out]=0;
+					rv->dlen=out;
 					return(rv);
 				}
 			break;
@@ -381,7 +437,40 @@ hmsg hmsg_from_str(const char *str, bool read)
 				{
 					char *htag=strndup(tag, tage-tag);
 					char *hval=strndup(curr, p-curr);
-					add_htag(rv, htag, hval);
+					size_t hlen=p-curr;
+					size_t in=0, out=0;
+					while(in<hlen)
+					{
+						if(hval[in]=='\\')
+						{
+							switch(hval[++in])
+							{
+								case '0':
+									hval[out++]=0;
+								break;
+								case 'n':
+									hval[out++]='\n';
+								break;
+								case '[':
+									hval[out++]='(';
+								break;
+								case ']':
+									hval[out++]=')';
+								break;
+								case '\\':
+									/* fallthrough */
+								default:
+									hval[out++]=hval[in];
+								break;
+							}
+						}
+						else
+							hval[out++]=hval[in];
+						in++;
+					}
+					hval[out]=0;
+					hlen=out;
+					add_htag_d(rv, htag, hval, hlen);
 					if(htag) free(htag);
 					if(hval) free(hval);
 					state=7;
@@ -575,6 +664,7 @@ void free_hmsg(hmsg h)
 	}
 	if(h->p_tag) free(h->p_tag);
 	if(h->p_value) free(h->p_value);
+	if(h->p_vlen) free(h->p_vlen);
 	if(h->funct) free(h->funct);
 	if(h->data) free(h->data);
 	free(h);
