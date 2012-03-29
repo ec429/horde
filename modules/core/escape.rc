@@ -1,0 +1,10 @@
+(add \
+	(& &amp;)
+	(< &lt;)
+	(> &gt;)
+	(" &quot;)
+	(' &#x27;)
+	(/ &#x2F;)
+	html)
+
+(default html)

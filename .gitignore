@@ -5,6 +5,7 @@ modules/core/ext
 modules/core/file
 modules/core/log
 modules/core/stats
+modules/core/escape
 *.o
 modules/pico/pico
 modules/local
