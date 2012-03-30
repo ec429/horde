@@ -56,7 +56,7 @@ Another way to pass binary data, rather than using new_hmsg_d(), is to use the (
 hmsg format:
 ------------
 An hmsg (pronounced 'aitch-message') consists of 'funct', 'data', and a list of 'htags', each of which is a key-value pair.
-'funct' and the htag names (keys) are purely textual and may not contain parens, newlines or NULs.
+'funct' and the htag names (keys) are purely textual and may not contain parens, newlines, spaces or NULs.
 'data' and the htag values may contain any character; on the wire these are escaped as follows:
 	NUL		-> \0
 	newline	-> \n
@@ -76,7 +76,6 @@ TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way 
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
 TODO: Handle hostnames in GET-url (check it's ours!)
 TODO: Bernstein chaining - have a launcher that binds the socket, drops privs, then execs horde.  At the moment horde could (maybe) regain privs if compromised
-TODO: finish the 'escape' server
 TODO: escape untrusted data in pico
 
 Sample Transcript:

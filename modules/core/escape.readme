@@ -1,0 +1,11 @@
+Format of (escape) calls: (escape (map mapname) text-or-binary)
+mapname describes which mapping (set of escapes) to use; the mappings are defined in escape.rc
+If mapname is omitted, the default mapping will be used; this is defined by the (default mapname) directive in escape.rc
+
+Mappings provided by the default escape.rc:
+html
+	Escapes HTML element content, according to Rule #1 of OWASP's XSS Prevention Cheat Sheet.
+	https://www.owasp.org/index.php/XSS_%28Cross_Site_Scripting%29_Prevention_Cheat_Sheet#RULE_.231_-_HTML_Escape_Before_Inserting_Untrusted_Data_into_HTML_Element_Content
+
+Pitfalls:
+At present (escape) can only handle single characters in the 'input' side of mappings; thus it is not a general-purpose string-replacement tool.  There may be some formats that require longer tokens to be escaped (and cannot merely escape their constituent characters individually), and such escaping rules cannot currently be implemented in (escape).
