@@ -1,0 +1,6 @@
+Extensions over the old httpico (as described in spec.pico):
+
+<?pico useragent> and <?pico rqpath> now escape the strings according to escape's "html" mapping, entity escaping &<>"'/
+This prevents their exploitation by reflected XSS attacks, so long as both of these <?pico> tags are only used in HTML element content (and not in, say, element attributes or JavaScript data values!).
+
+Added <?pico rspath>, which yields the 'response path'; that is, the path after normalisation and internal redirections (such as a custom error page).  This is as distinguished from <?pico rqpath>, the 'request path'; for instance, requesting /foo/../non-existent-file will yield an rqpath of "/non-existent-file" and an rspath of "/404.htm" (assuming you have a custom 404 page; if not, I'm not sure what rspath you get).  Note, however, that round-trip redirections (ie. 302 + Location: header, such as proc uses on certain symlinks) will change both paths, since the request producing the new entity body is that for the new path, and indeed the server has no way to know that a given request is due to the client following a given 302 redirect (since HTTP is stateless).

@@ -284,7 +284,36 @@ char *picofy(const hmsg h, hstate *hst)
 				}
 				else if(strcmp(d, "useragent")==0)
 				{
-					if(ua) append_str(&rv, &l, &i, ua);
+					if(ua)
+					{
+						hmsg u=new_hmsg("escape", ua);
+						add_htag(u, "map", "html");
+						hsend(1, u);
+						while(!hst->shutdown)
+						{
+							char *inp=getl(STDIN_FILENO);
+							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+							if(!*inp) {free(inp);continue;}
+							hmsg h=hmsg_from_str(inp, true);
+							if(!hmsg_state(h, hst))
+							{
+								if(strcmp(h->funct, "escape")==0)
+								{
+									append_str(&rv, &l, &i, h->data);
+									break;
+								}
+								else if(strcmp(h->funct, "err")==0)
+								{
+									append_str(&rv, &l, &i, "[error]");
+									break;
+								}
+							}
+							free_hmsg(h);
+							free(inp);
+						}
+						if(hst->shutdown)
+							exit(EXIT_FAILURE);
+					}
 					else append_char(&rv, &l, &i, '?');
 				}
 				else if(strcmp(d, "version")==0)
@@ -319,9 +348,73 @@ char *picofy(const hmsg h, hstate *hst)
 						exit(EXIT_FAILURE);
 				}
 				else if(strcmp(d, "rqpath")==0)
-					append_str(&rv, &l, &i, rqpath?rqpath:"");
+				{
+					if(rqpath)
+					{
+						hmsg u=new_hmsg("escape", rqpath);
+						add_htag(u, "map", "html");
+						hsend(1, u);
+						while(!hst->shutdown)
+						{
+							char *inp=getl(STDIN_FILENO);
+							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+							if(!*inp) {free(inp);continue;}
+							hmsg h=hmsg_from_str(inp, true);
+							if(!hmsg_state(h, hst))
+							{
+								if(strcmp(h->funct, "escape")==0)
+								{
+									append_str(&rv, &l, &i, h->data);
+									break;
+								}
+								else if(strcmp(h->funct, "err")==0)
+								{
+									append_str(&rv, &l, &i, "[error]");
+									break;
+								}
+							}
+							free_hmsg(h);
+							free(inp);
+						}
+						if(hst->shutdown)
+							exit(EXIT_FAILURE);
+					}
+				}
 				else if(strcmp(d, "rspath")==0)
-					append_str(&rv, &l, &i, rspath?rspath:rqpath?rqpath:"");
+				{
+					const char *p=rspath;
+					if(!p) p=rqpath;
+					if(p)
+					{
+						hmsg u=new_hmsg("escape", p);
+						add_htag(u, "map", "html");
+						hsend(1, u);
+						while(!hst->shutdown)
+						{
+							char *inp=getl(STDIN_FILENO);
+							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+							if(!*inp) {free(inp);continue;}
+							hmsg h=hmsg_from_str(inp, true);
+							if(!hmsg_state(h, hst))
+							{
+								if(strcmp(h->funct, "escape")==0)
+								{
+									append_str(&rv, &l, &i, h->data);
+									break;
+								}
+								else if(strcmp(h->funct, "err")==0)
+								{
+									append_str(&rv, &l, &i, "[error]");
+									break;
+								}
+							}
+							free_hmsg(h);
+							free(inp);
+						}
+						if(hst->shutdown)
+							exit(EXIT_FAILURE);
+					}
+				}
 				else if(strcmp(d, "host")==0)
 					append_str(&rv, &l, &i, hst->host);
 				else if(strcmp(d, "now")==0)
