@@ -6,7 +6,7 @@ CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g -I$(HORDE)
 LIBS := $(HORDE)libhorde.o $(HORDE)bits.o
 INCLUDES := $(HORDE)libhorde.h $(HORDE)bits.h
 
-all: ext file log stats
+all: ext file log stats escape
 
 file: file.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ file.c $(LIBS) -lmagic

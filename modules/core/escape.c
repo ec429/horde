@@ -26,14 +26,17 @@ typedef struct
 }
 map;
 
-void handle(const char *inp);
+unsigned int nmaps=0;
+map *maps=NULL;
+char *defaultmap=NULL;
+
+void handle(const char *inp, hstate *hst);
+char *apply_map(const hmsg h, map m, size_t *len);
 
 int main(int argc, char **argv)
 {
 	hstate hst;
 	hst_init(&hst, argc?argv[0]:"escape", true);
-	unsigned int nmaps=0;
-	map *maps=NULL;
 	FILE *rc=fopen("modules/core/escape.rc", "r");
 	if(rc)
 	{
@@ -62,9 +65,8 @@ int main(int argc, char **argv)
 				free(cont);
 				line=newl;
 			}
-			int e=handle(line);
+			handle(line, &hst);
 			free(line);
-			if(e) break;
 		}
 		fclose(rc);
 	}
@@ -94,19 +96,51 @@ void handle(const char *inp, hstate *hst)
 				h->data=strdup("");
 				h->dlen=0;
 			}
+			const char *map=gettag(h, "map");
+			if(!map) map=defaultmap;
+			if(!map)
+			{
+				if(hst->debug) fprintf(stderr, "horde: %s[%d]: (escape) without map and no default set\n", hst->name, getpid());
+				hmsg eh=new_hmsg("err", inp);
+				if(eh)
+				{
+					add_htag(eh, "what", "missing-arg");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
+			}
 			else
 			{
-/*				char *resp=apply(h, hst);
-				free(h->data);
-				h->data=resp;
-				h->dlen=strlen(resp);
-				for(unsigned int i=0;i<h->nparms;i++)
+				unsigned int i;
+				for(i=0;i<nmaps;i++)
+					if(strcmp(map, maps[i].name)==0) break;
+				if(i<nmaps)
 				{
-					if(strcmp(h->p_tag[i], "from")==0)
-						strcpy(h->p_tag[i], "to");
+					size_t rlen=0;
+					char *resp=apply_map(h, maps[i], &rlen);
+					free(h->data);
+					h->data=resp;
+					h->dlen=rlen;
+					for(unsigned int i=0;i<h->nparms;i++)
+					{
+						if(strcmp(h->p_tag[i], "from")==0)
+							strcpy(h->p_tag[i], "to");
+					}
+					hsend(1, h);
 				}
-				add_htag(h, "server", "pico "PICO_VER);
-				hsend(1, h);*/
+				else
+				{
+					if(hst->debug) fprintf(stderr, "horde: %s[%d]: unrecognised map `%s'\n", hst->name, getpid(), map);
+					hmsg eh=new_hmsg("err", inp);
+					if(eh)
+					{
+						add_htag(eh, "what", "unrecognised-arg");
+						if(from) add_htag(eh, "to", from);
+						hsend(1, eh);
+						free_hmsg(eh);
+					}
+				}
 			}
 			if(hst->pipeline)
 			{
@@ -125,8 +159,122 @@ void handle(const char *inp, hstate *hst)
 		{
 			if(!h->data)
 			{
-				
+				if(hst->debug) fprintf(stderr, "horde: %s[%d]: (add) without data, failing\n", hst->name, getpid());
+				hst->shutdown=true;
+				hmsg eh=new_hmsg("err", inp);
+				if(eh)
+				{
+					add_htag(eh, "what", "missing-data");
+					if(from) add_htag(eh, "to", from);
+					hsend(1, eh);
+					free_hmsg(eh);
+				}
 			}
+			else
+			{
+				unsigned int n=nmaps++;
+				map *newmaps=realloc(maps, nmaps*sizeof(*maps));
+				if(!newmaps)
+				{
+					nmaps=n;
+					hmsg eh=new_hmsg("err", inp);
+					if(eh)
+					{
+						add_htag(eh, "what", "allocation-failure");
+						if(from) add_htag(eh, "to", from);
+						hsend(1, eh);
+						free_hmsg(eh);
+					}
+				}
+				else
+				{
+					(maps=newmaps)[n]=(map){.name=strdup(h->data), .nchars=h->nparms};
+					if(!maps[n].name)
+					{
+						nmaps--;
+						hmsg eh=new_hmsg("err", inp);
+						if(eh)
+						{
+							add_htag(eh, "what", "allocation-failure");
+							if(from) add_htag(eh, "to", from);
+							hsend(1, eh);
+							free_hmsg(eh);
+						}
+					}
+					else if(!(maps[n].from=malloc(maps[n].nchars+1)))
+					{
+						free(maps[n].name);
+						nmaps--;
+						hmsg eh=new_hmsg("err", inp);
+						if(eh)
+						{
+							add_htag(eh, "what", "allocation-failure");
+							if(from) add_htag(eh, "to", from);
+							hsend(1, eh);
+							free_hmsg(eh);
+						}
+					}
+					else if(!(maps[n].to=malloc(maps[n].nchars*sizeof(*maps[n].to))))
+					{
+						free(maps[n].name);
+						free(maps[n].from);
+						nmaps--;
+						hmsg eh=new_hmsg("err", inp);
+						if(eh)
+						{
+							add_htag(eh, "what", "allocation-failure");
+							if(from) add_htag(eh, "to", from);
+							hsend(1, eh);
+							free_hmsg(eh);
+						}
+					}
+					else
+					{
+						for(unsigned int i=0;i<h->nparms;i++)
+						{
+							maps[n].from[i]=h->p_tag[i][0];
+							if(!(maps[n].to[i]=strdup(h->p_value[i])))
+							{
+								for(;i>0;i--)
+									free(maps[n].to[i-1]);
+								free(maps[n].to);
+								free(maps[n].from);
+								free(maps[n].name);
+								nmaps--;
+								hmsg eh=new_hmsg("err", inp);
+								if(eh)
+								{
+									add_htag(eh, "what", "allocation-failure");
+									if(from) add_htag(eh, "to", from);
+									hsend(1, eh);
+									free_hmsg(eh);
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		else if(strcmp(h->funct, "default")==0)
+		{
+			free(defaultmap);
+			if(h->data)
+			{
+				if(!(defaultmap=strdup(h->data)))
+				{
+					hmsg eh=new_hmsg("err", inp);
+					if(eh)
+					{
+						add_htag(eh, "what", "allocation-failure");
+						if(from) add_htag(eh, "to", from);
+						hsend(1, eh);
+						free_hmsg(eh);
+					}
+				}
+			}
+			else
+				defaultmap=NULL;
 		}
 		else
 		{
@@ -143,4 +291,25 @@ void handle(const char *inp, hstate *hst)
 		free_hmsg(h);
 	}
 	return;
+}
+
+char *apply_map(const hmsg h, map m, size_t *len)
+{
+	char *rv; unsigned int l,i;
+	init_char(&rv, &l, &i);
+	size_t p;
+	for(p=0;p<h->dlen;p++)
+	{
+		char c=h->data[p];
+		char *f=strchr(m.from, c); // XXX bad things if one of the 'from' is \0
+		if(f&&c)
+		{
+			unsigned int w=f-m.from;
+			append_str(&rv, &l, &i, m.to[w]);
+		}
+		else
+			append_char(&rv, &l, &i, c);
+	}
+	if(len) *len=i;
+	return(rv);
 }

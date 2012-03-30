@@ -127,6 +127,7 @@ void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 
 void append_str(char **buf, unsigned int *l, unsigned int *i, const char *s)
 {
+	if(!s) return;
 	while(*s)
 		append_char(buf, l, i, *s++);
 }
