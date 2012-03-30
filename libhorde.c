@@ -161,7 +161,7 @@ int add_htag_d(hmsg h, const char *p_tag, const char *p_value, size_t p_vlen)
 char *str_from_hmsg(const hmsg h)
 {
 	if(!h) return(strdup("(nil)"));
-	char *rv; unsigned int l,i;
+	char *rv; size_t l,i;
 	init_char(&rv, &l, &i);
 	append_char(&rv, &l, &i, '(');
 	append_str(&rv, &l, &i, h->funct?h->funct:"nil");
@@ -757,7 +757,7 @@ lform lform_str(const char *str, const char **end)
 
 char *str_lform(const lform lf)
 {
-	char *rv; unsigned int l,i;
+	char *rv; size_t l,i;
 	init_char(&rv, &l, &i);
 	if(lf)
 	{
@@ -986,7 +986,7 @@ lvalue l_eval(lform lf, lvars lv, lvalue app(lform lf, lvars lv))
 		lvalue index=l_eval(&lf->chld[0], lv, app), length=l_eval(&lf->chld[1], lv, app);
 		if(index.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
 		if(length.type!=L_NUM) {free_lvalue(index); free_lvalue(length); return(l_str(NULL));}
-		char *rv;unsigned int l,i;
+		char *rv;size_t l,i;
 		init_char(&rv, &l, &i);
 		unsigned int chld;
 		for(chld=2;chld<lf->nchld;chld++)

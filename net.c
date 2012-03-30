@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 	char *ip = malloc(is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
 	if(ip) inet_ntop(is6?AF_INET6:AF_INET, is6?(const void *)&((struct sockaddr_in6 *)&remote)->sin6_addr:(const void *)&((struct sockaddr_in *)&remote)->sin_addr, ip, is6?INET6_ADDRSTRLEN:INET_ADDRSTRLEN);
 	if(ip&&hst.debug) fprintf(stderr, "horde: %s[%d]: remote IP is %s\n", hst.name, getpid(), ip);
-	char *buf;unsigned int bl, bi;
+	char *buf;size_t bl, bi;
 	init_char(&buf, &bl, &bi);
 	while((bi<4) || strncmp(buf+bi-4, "\r\n\r\n", 4))
 	{
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
 				}
 				unsigned short status=200;
 				const char *statusmsg=gettag(h, "statusmsg");
-				char *fserver; unsigned int fsl, fsi;
+				char *fserver; size_t fsl, fsi;
 				init_char(&fserver, &fsl, &fsi);
 				append_str(&fserver, &fsl, &fsi, server);
 				unsigned int i;

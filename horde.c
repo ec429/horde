@@ -267,7 +267,7 @@ int main(int argc, char **argv)
 	}
 	if(debug) fprintf(stderr, "horde: started ok, listening on port %hu\n", port);
 	struct timeval timeout;
-	char *input; unsigned int inpl, inpi;
+	char *input; size_t inpl, inpi;
 	init_char(&input, &inpl, &inpi);
 	time_t shuttime=0;
 	net_micro=0;
@@ -1094,7 +1094,7 @@ void uptime_respond(unsigned int w, hmsg h, time_t upsince)
 {
 	time_t now=time(NULL);
 	char *rv;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&rv, &l, &i);
 	char *d=h->data;
 	int seconds;

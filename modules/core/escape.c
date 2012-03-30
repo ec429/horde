@@ -295,7 +295,7 @@ void handle(const char *inp, hstate *hst)
 
 char *apply_map(const hmsg h, map m, size_t *len)
 {
-	char *rv; unsigned int l,i;
+	char *rv; size_t l,i;
 	init_char(&rv, &l, &i);
 	size_t p;
 	for(p=0;p<h->dlen;p++)

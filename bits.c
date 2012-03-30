@@ -96,7 +96,7 @@ ssize_t dslurp(FILE *fp, char **buf)
 	return(-1);
 }
 
-void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
+void append_char(char **buf, size_t *l, size_t *i, char c)
 {
 	if(*buf)
 	{
@@ -125,14 +125,14 @@ void append_char(char **buf, unsigned int *l, unsigned int *i, char c)
 	}
 }
 
-void append_str(char **buf, unsigned int *l, unsigned int *i, const char *s)
+void append_str(char **buf, size_t *l, size_t *i, const char *s)
 {
 	if(!s) return;
 	while(*s)
 		append_char(buf, l, i, *s++);
 }
 
-void init_char(char **buf, unsigned int *l, unsigned int *i)
+void init_char(char **buf, size_t *l, size_t *i)
 {
 	*l=80;
 	*buf=malloc(*l);
@@ -145,7 +145,7 @@ void init_char(char **buf, unsigned int *l, unsigned int *i)
 	*l=0;
 }
 
-void u_append_char(uchar_t **buf, unsigned int *l, unsigned int *i, uchar_t c)
+void u_append_char(uchar_t **buf, size_t *l, size_t *i, uchar_t c)
 {
 	if(c)
 	{
@@ -177,13 +177,13 @@ void u_append_char(uchar_t **buf, unsigned int *l, unsigned int *i, uchar_t c)
 	}
 }
 
-void u_append_str(uchar_t **buf, unsigned int *l, unsigned int *i, const uchar_t *s)
+void u_append_str(uchar_t **buf, size_t *l, size_t *i, const uchar_t *s)
 {
 	while(*s)
 		u_append_char(buf, l, i, *s++);
 }
 
-void u_init_char(uchar_t **buf, unsigned int *l, unsigned int *i)
+void u_init_char(uchar_t **buf, size_t *l, size_t *i)
 {
 	*l=80;
 	*buf=malloc(*l*sizeof(uchar_t));
@@ -225,7 +225,7 @@ char *normalise_path(char *path)
 		el[i]=strtok(NULL, "/");
 	}
 	if(!i) return(strdup("/"));
-	char *rpath;unsigned int rl, ri;
+	char *rpath;size_t rl, ri;
 	init_char(&rpath, &rl, &ri);
 	for(j=0;j<i;j++)
 	{
