@@ -5,18 +5,21 @@ CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g
 LIBS := libhorde.o bits.o
 INCLUDES := libhorde.h bits.h
 
-all: horde net proc modules
+all: horde net proc modules tests run-tests
 
 horde: horde.c $(INCLUDES) $(LIBS)
-	$(CC) $(CFLAGS) -o $@ horde.c $(LIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) $(LIBS) -o $@
 
 net: net.c $(INCLUDES) $(LIBS) http.h
-	$(CC) $(CFLAGS) -o $@ net.c $(LIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) $(LIBS) -o $@
 
 proc: proc.c $(INCLUDES) $(LIBS)
-	$(CC) $(CFLAGS) -o $@ proc.c $(LIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) $(LIBS) -o $@
 
-.PHONY: modules clean
+tests: tests.c bits.o bits.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) bits.o -o $@
+
+.PHONY: modules clean run-tests
 FORCE:
 
 modules: $(INCLUDES) $(LIBS)
@@ -28,6 +31,9 @@ local: modules
 clean:
 	-rm $(LIBS) horde net proc
 	$(MAKE) -C modules clean
+
+run-tests: tests horde net proc modules FORCE
+	./tests
 
 version.h: FORCE
 	sh gitversion

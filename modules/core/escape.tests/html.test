@@ -1,0 +1,4 @@
+$ Ordinary HTML escaping
+# This test passes in a string containing all 6 of the characters escaped by the 'html' map.
+< (escape (map html) <script type="text/javascript" src="somewhere.else/inject.js" />'&lt;')
+> (escape (map html) &lt;script type=&quot;text&#x2F;javascript&quot; src=&quot;somewhere.else&#x2F;inject.js&quot; &#x2F;&gt;&#x27;&amp;lt;&#x27;)

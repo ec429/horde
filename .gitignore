@@ -1,6 +1,7 @@
 horde
 net
 proc
+tests
 modules/core/ext
 modules/core/file
 modules/core/log
