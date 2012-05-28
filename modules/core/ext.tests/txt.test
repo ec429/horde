@@ -1,0 +1,4 @@
+$ Extension txt
+# This test checks the basic operation, by looking up 'txt'.
+< (ext txt)
+> (ext text/plain)

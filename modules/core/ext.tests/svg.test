@@ -1,0 +1,4 @@
+$ Extension svg
+# This test checks the basic operation, by looking up 'svg'.
+< (ext svg)
+> (ext image/svg+xml)

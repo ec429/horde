@@ -1,0 +1,4 @@
+$ Embedded NUL
+# This test supplies a file with an embedded NUL.
+< (file octet\0stream)
+> (file (header Content-Type: application/octet-stream; charset=UTF-8) octet\0stream)

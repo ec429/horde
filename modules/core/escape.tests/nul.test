@@ -1,0 +1,4 @@
+$ Embedded NULs
+# This test passes in a string containing an embedded NUL.
+< (escape (map html) foo\0bar<)
+> (escape (map html) foo\0bar&lt;)

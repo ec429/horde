@@ -1,0 +1,4 @@
+$ Type text/x-c
+# This test checks the basic operation, by testing a C source file.
+< (file #include <stdio.h>\nint main\[void\]\n{\n	return\[0\];\n}\n)
+> (file (header Content-Type: text/x-c; charset=UTF-8) #include <stdio.h>\nint main\[void\]\n{\n	return\[0\];\n}\n)
