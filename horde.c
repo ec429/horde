@@ -892,15 +892,16 @@ int addworker(worker new)
 void rmworker(unsigned int w)
 {
 	if(w>=nworkers) return;
-	if(workers[w].pipe)
+	worker oldw=workers[w];
+	if(oldw.pipe)
 	{
-		if(workers[w].pipe[0]) close(workers[w].pipe[0]);
-		if(workers[w].pipe[1]) close(workers[w].pipe[1]);
+		if(oldw.pipe[0]) close(oldw.pipe[0]);
+		if(oldw.pipe[1]) close(oldw.pipe[1]);
 	}
-	pid_t was=workers[w].pid;
-	pid_t blocks=workers[w].blocks;
-	bool autoreplace=workers[w].autoreplace;
-	const char *prog=workers[w].prog, *name=workers[w].name;
+	pid_t was=oldw.pid;
+	pid_t blocks=oldw.blocks;
+	bool autoreplace=oldw.autoreplace;
+	const char *prog=oldw.prog, *name=oldw.name;
 	while(w<nworkers)
 	{
 		workers[w]=workers[w+1];
@@ -937,6 +938,9 @@ void rmworker(unsigned int w)
 		{
 			if(debug) fprintf(stderr, "horde: rmworker: automatically replaced worker %s[%u->%u]\n", name, was, p);
 			workers[w].autoreplace=true;
+			workers[w].accepting=true;
+			workers[w].pulse=oldw.pulse;
+			workers[w].tail=oldw.tail;
 		}
 	}
 	return;
