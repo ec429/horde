@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <errno.h>
 #include "bits.h"
 
@@ -61,19 +62,35 @@ int main(void)
 			line *l=t->lines+j;
 			if(l->out)
 			{
-				char *o=getl(pipes[0]);
-				if(!o)
+				fd_set readfds;
+				FD_SET(pipes[0], &readfds);
+				if(select(pipes[0]+1, &readfds, NULL, NULL, &(struct timeval){.tv_sec=4, .tv_usec=0})<0)
 				{
-					fprintf(stderr, "tests: o==NULL\n");
+					perror("tests: select");
 					return(EXIT_FAILURE);
 				}
-				if(strcmp(o, l->text)!=0)
+				if(!FD_ISSET(pipes[0], &readfds))
 				{
-					fprintf(stderr, "tests: error in test '%s' at line %u\nexpected %s\nreceived %s\n", t->name, l->sl, l->text, o);
+					fprintf(stderr, "tests: timeout in test '%s' at line %u\nexpected %s\n", t->name, l->sl, l->text);
 					haverr=true;
 					errs++;
 				}
-				free(o);
+				else
+				{
+					char *o=getl(pipes[0]);
+					if(!o)
+					{
+						fprintf(stderr, "tests: o==NULL\n");
+						return(EXIT_FAILURE);
+					}
+					if(strcmp(o, l->text)!=0)
+					{
+						fprintf(stderr, "tests: error in test '%s' at line %u\nexpected %s\nreceived %s\n", t->name, l->sl, l->text, o);
+						haverr=true;
+						errs++;
+					}
+					free(o);
+				}
 			}
 			else
 			{
