@@ -451,11 +451,24 @@ int main(int argc, char **argv)
 				}
 				hmsg l=new_hmsg("tail", NULL);
 				char st[TL_SHORT], sz[TL_SIZET];
+				const char *ctype=NULL;
 				snprintf(st, sizeof(st), "%hu", status);
 				add_htag(l, "status", st);
 				snprintf(sz, sizeof(sz), "%zu", h->dlen);
 				add_htag(l, "bytes", sz);
 				if(rpath) add_htag(l, "rpath", rpath);
+				for(i=0;i<h->nparms;i++)
+				{
+					if(strcmp(h->p_tag[i], "header")==0)
+					{
+						if(strncmp(h->p_value[i], "Content-Type: ", 14)==0)
+						{
+							ctype=h->p_value[i]+14;
+							break;
+						}
+					}
+				}
+				if(ctype) add_htag(l, "ctype", ctype);
 				if(ip) add_htag(l, "ip", ip);
 				add_htag(l, "method", "GET");
 				if(ref) add_htag(l, "referrer", ref);
