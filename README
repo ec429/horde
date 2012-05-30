@@ -66,8 +66,20 @@ An hmsg (pronounced 'aitch-message') consists of 'funct', 'data', and a list of 
 The representation of an hmsg is as follows:
 	(funct (htag-name htag-value) (htag-name htag-value) data)
 
+Unit Testing:
+-------------
+horde's textual IPC scheme makes automated testing of individual modules easy.  One way to do it would be to run "./path/to/module < test-input | diff expected-output", however this isn't very flexible.
+Consequently, horde includes a testing framework, whereby a test for a module ./path/to/module can be registered by creating a test specification at ./path/to/module.tests/name.test; all registered tests can then be run with ./tests, which collates and summarises the results.  The test specification format is line-based; every line starts with a line type identifier followed by a space, as follows:
+$ The human-readable name of the test
+# A comment
+< A line to supply to the module's input
+> A line expected from the module's output
+Typically, < and > lines will be hmsgs, though this isn't always the case (eg. the stock tests for 'modules/core/log' use (logf /dev/stdout) to redirect the log entries to standard output, then >-expect the resulting log entries).
+A horde module should not be considered complete unless accompanied by a suite of tests covering essentially all of its normal functionality.
+
 Plans:
 ------
+TODO: arguments to 'tests', like --all (default & current behaviour), ./path/to/module (run all tests in ./path/to/module.tests), ./path/to/module.tests/which.test (run only the specified test), --diff (use 'diff -u' to compare the expected and received output, instead of doing a straight line-by-line comparison)
 TODO: make the libhorde interfaces use string structs (rather than having the new_hmsg and new_hmsg_d profusion)
 TODO: cull excessive idle workers
 TODO: add a second form of time profiling in dispatcher, which doesn't charge a worker for the time it spends waiting for someone else (start counting when you receive a message, stop counting when you send one)
@@ -76,52 +88,3 @@ TODO: make 'net' handle errors by requesting (proc /500.htm), though find a way 
 TODO: HTTP pipelining in 'net' (controlled, of course, by hst.pipeline)
 TODO: Handle hostnames in GET-url (check it's ours!)
 TODO: Bernstein chaining - have a launcher that binds the socket, drops privs, then execs horde.  At the moment horde could (maybe) regain privs if compromised
-
-Sample Transcript:
-------------------
-This section is not entirely accurate: the following transcript, while a reasonable way of doing things, does not correspond to the current implementation (for instance, path resolution in this case actually triggers a 302; proc doesn't use a sock_un but instead reads/writes the data through disp; we now escape special chars in messages instead of hex-encoding the whole string; rather than having a hard-coded 'stats' call, we have a '(tail) call' mechanism for registering arbitrary callbacks).  The name 'disp' is used to represent the dispatcher, whose actual executable name is 'horde'.  This transcript was originally produced not for documentation but as a rough specification of "how things should work" during the early stages of development.
-
-Example Transcript; {} denotes hex-encoding.  Internally generated message data are hex-encoded iff they contain parens or spaces or begin with a '#' (wh. is used to indicate hex-encoding).  User-input data may be hex-encoded unnecessarily.  [] denotes variables.
-	disp fork() exec(path)
-	disp fork() exec(stats)
-	C>disp connect
-	disp fork() exec(net)
-	net accept()
-	C>net: GET / HTTP/1.0
-	net>disp: (path /)
-	disp>path: (path (from net) /)
-	path>disp: (path (to net) /index.html)
-	disp>net: (path /index.html)
-	net>disp: (proc /index.html)
-	disp fork() exec(proc)
-	disp>proc: (proc (from net) /index.html)
-	proc reads index.html; it contains some <?pico> tags and otherwise matches no rules
-	proc opens a sock_un, /tmp/.horde_[pid] (hereonin 'sock')
-	proc>disp: (pico /tmp/.horde_[pid])
-	disp fork() exec(pico)
-	disp>pico: (pico (from proc) /tmp/.horde_[pid])
-	pico>sock>proc: (waiting pico)
-	proc>sock>pico: (pico {[page html data]})
-	pico>disp: (uptime)
-	disp>pico: (uptime {horde: 8 days, 15:37:16 | system: 73 days, 01:49:58})
-	pico>sock>proc: (pico {[page html data, pico-processed]})
-	pico closes sock
-	proc closes sock
-	proc>disp (proc (to net) {[page html data, pico-processed]})
-	disp>net (proc {[page html data, pico-processed]})
-	net>C: the HTTP response, 200 OK and all the data
-	net>disp (stats (time [time_t]) (ip [IP]) (status 200) (bytes [bytes]) (file /index.html) /*...etc...*/ append)
-	disp>stats (stats (from net) /*...etc...*/ append)
-	stats>disp (stats (to net) append)
-	disp>net (stats append)
-	/* we assume pipelining was not requested */
-	net>disp (close)
-	net return()s
-	stdin>disp: (shutdown)
-	disp>* (shutdown)
-	path return()s
-	proc return()s
-	stats return()s
-	pico return()s
-	disp>stdout: (shutdown (when now))
-	disp return()s
