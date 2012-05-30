@@ -1,14 +1,14 @@
 $ Page detection
 # This test checks the discrimination between pages and binary blobs
-< (tail (bytes 1) (rpath /) (ctype text/plain))
+< (tail (bytes 1) (ctype text/plain))
 < (stats pages_today)
 > (stats 1)
-< (tail (bytes 1) (rpath /) (ctype text/x-c))
+< (tail (bytes 1) (ctype text/x-c))
 < (stats pages_today)
 > (stats 2)
-< (tail (bytes 1) (rpath /) (ctype application/octet-stream))
+< (tail (bytes 1) (ctype application/octet-stream))
 < (stats pages_today)
 > (stats 2)
-< (tail (bytes 1) (rpath /) (ctype text/html))
+< (tail (bytes 1) (ctype text/html))
 < (stats pages_today)
 > (stats 3)

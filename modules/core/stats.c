@@ -77,7 +77,7 @@ int handle(const char *inp)
 	{
 		if(strcmp(h->funct, "tail")==0)
 		{
-			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *st=gettag(h, "status"), *pa=gettag(h, "rpath");
+			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *st=gettag(h, "status"), *pa=gettag(h, "rpath"), *ct=gettag(h, "ctype");
 			bool nonlocal=(ip!=NULL)&&(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0);
 			unsigned short status=0;
 			if(st)
@@ -93,7 +93,11 @@ int handle(const char *inp)
 			else
 				fprintf(stderr, "horde: stats[%d]: sz is NULL\n", getpid());
 			bool page=false;
-			if(pa)
+			if(ct)
+			{
+				if(strncmp(ct, "text/", 5)==0) page=true;
+			}
+			else if(pa) // No ctype found, so use pathname heuristics
 			{
 				const char *dot=strrchr(pa, '.');
 				if(dot)
@@ -106,7 +110,7 @@ int handle(const char *inp)
 					page=true;
 			}
 			else
-				fprintf(stderr, "horde: stats[%d]: pa is NULL\n", getpid());
+				fprintf(stderr, "horde: stats[%d]: ct,pa are NULL\n", getpid());
 			if(page&&(status!=404))
 			{
 				pages_today[0]++;
