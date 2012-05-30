@@ -14,6 +14,7 @@ typedef struct
 {
 	bool out;
 	char *text;
+	unsigned int sl; // source line
 }
 line;
 
@@ -68,7 +69,7 @@ int main(void)
 				}
 				if(strcmp(o, l->text)!=0)
 				{
-					fprintf(stderr, "tests: error in test '%s'\nexpected %s\nreceived %s\n", t->prog, l->text, o);
+					fprintf(stderr, "tests: error in test '%s' at line %u\nexpected %s\nreceived %s\n", t->name, l->sl, l->text, o);
 					haverr=true;
 					errs++;
 				}
@@ -199,8 +200,10 @@ int rcread(const char *fn, const char *pn)
 		}
 		if(debug) fprintf(stderr, "tests: reading test file '%s'\n", fn);
 		char *fline;
+		unsigned int sl=0;
 		while((fline=fgetl(rc)))
 		{
+			sl++;
 			if(!*fline)
 			{
 				free(fline);
@@ -222,6 +225,7 @@ int rcread(const char *fn, const char *pn)
 				strcat(newl, cont);
 				free(cont);
 				fline=newl;
+				sl++;
 			}
 			if((!fline[0])||(fline[1]!=' '))
 			{
@@ -239,7 +243,7 @@ int rcread(const char *fn, const char *pn)
 				break;
 				case '<':
 				case '>':;
-					line l={.out=(*fline=='>'), .text=strdup(fline+2)};
+					line l={.out=(*fline=='>'), .text=strdup(fline+2), .sl=sl};
 					unsigned int n=t.nlines++;
 					line *nl=realloc(t.lines, t.nlines*sizeof(line));
 					if(!nl)
