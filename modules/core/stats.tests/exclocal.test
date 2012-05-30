@@ -1,0 +1,7 @@
+$ stats_exclocal
+# This test checks exclusion of localhost from stats
+< (tail (ip 1.2.3.4) (bytes 1) (rpath /))
+< (tail (ip 127.0.0.1) (bytes 2) (rpath /))
+< (tail (ip ::1) (bytes 4) (rpath /))
+< (stats bytes_today_exclocal)
+> (stats 1)

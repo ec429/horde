@@ -1,0 +1,5 @@
+$ Simple stats
+# This test checks the basic operation of (tail) and (stats)
+< (tail (bytes 10) (rpath /))
+< (stats bytes_today)
+> (stats 10)

@@ -1,0 +1,11 @@
+$ Midnight Pulse
+# This test checks the resetting of daily stats at midnight
+< (tail (bytes 1) (rpath /))
+< (stats bytes_today)
+> (stats 1)
+< (pulse midnight)
+< (stats bytes_today)
+> (stats 0)
+< (tail (bytes 2) (rpath /))
+< (stats bytes_today)
+> (stats 2)
