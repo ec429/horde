@@ -1,0 +1,6 @@
+$ Full logline
+# This test checks the basic operation
+< (logf /dev/stdout)
+< (tail (ip 1.2.3.4) (date 1234-05-06 12:34:56) (status 200) (method GET) (bytes 123) (rpath /1/2/3.htm) (referrer http://example.com) (user-agent Bundibanglesoft Wombat Exploder))
+> 1.2.3.4	1234-05-06 12:34:56	200 GET [123] /1/2/3.htm	http://example.com	Bundibanglesoft Wombat Exploder
+# %s\t%s\t%s %s [%s] %s\t%s\t%s\n", ip, date, st, ac, sz, path?path:"?", ref?ref:"--", ua?ua:".."

@@ -1,0 +1,6 @@
+$ Missing fields
+# This test checks handling of missing htags
+< (logf /dev/stdout)
+< (tail (ip 9.9.9.9) (status 200))
+> 9.9.9.9	(null)	200 (null) [(null)] ?	--	..
+# %s\t%s\t%s %s [%s] %s\t%s\t%s\n", ip, date, st, ac, sz, path?path:"?", ref?ref:"--", ua?ua:".."
