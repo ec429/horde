@@ -78,7 +78,7 @@ int handle(const char *inp)
 		if(strcmp(h->funct, "tail")==0)
 		{
 			const char *ip=gettag(h, "ip"), *sz=gettag(h, "bytes"), *st=gettag(h, "status"), *pa=gettag(h, "rpath");
-			bool nonlocal=(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0);
+			bool nonlocal=(ip!=NULL)&&(strcmp(ip, "127.0.0.1")!=0)&&(strcmp(ip, "::1")!=0);
 			unsigned short status=0;
 			if(st)
 				sscanf(st, "%hu", &status);
@@ -93,15 +93,20 @@ int handle(const char *inp)
 			else
 				fprintf(stderr, "horde: stats[%d]: sz is NULL\n", getpid());
 			bool page=false;
-			const char *dot=strrchr(pa, '.');
-			if(dot)
+			if(pa)
 			{
-				if(strcmp(dot, ".htm")==0) page=true;
-				if(strcmp(dot, ".html")==0) page=true;
-				if(strcmp(dot, ".txt")==0) page=true;
+				const char *dot=strrchr(pa, '.');
+				if(dot)
+				{
+					if(strcmp(dot, ".htm")==0) page=true;
+					if(strcmp(dot, ".html")==0) page=true;
+					if(strcmp(dot, ".txt")==0) page=true;
+				}
+				else
+					page=true;
 			}
 			else
-				page=true;
+				fprintf(stderr, "horde: stats[%d]: pa is NULL\n", getpid());
 			if(page&&(status!=404))
 			{
 				pages_today[0]++;
@@ -112,7 +117,15 @@ int handle(const char *inp)
 		else if(strcmp(h->funct, "stats")==0)
 		{
 			const char *from=gettag(h, "from");
-			if(strcmp(h->data, "bytes_today")==0)
+			if(!h->data)
+			{
+				hmsg u=new_hmsg("err", "stats");
+				add_htag(u, "what", "missing-data");
+				if(from) add_htag(u, "to", from);
+				hsend(1, u);
+				free_hmsg(u);
+			}
+			else if(strcmp(h->data, "bytes_today")==0)
 			{
 				char rv[12];
 				if(bytes_today[0]<2<<10)
