@@ -9,5 +9,7 @@ modules/core/stats
 modules/core/escape
 *.o
 modules/pico/pico
+modules/persist/persist
+modules/persist/*.per
 modules/local
 version.h
