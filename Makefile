@@ -5,7 +5,7 @@ CFLAGS := -Wall -Wextra -Werror -std=gnu99 -g
 LIBS := libhorde.o bits.o
 INCLUDES := libhorde.h bits.h
 
-all: horde net proc modules tests run-tests
+all: horde net proc modules tests test
 
 horde: horde.c $(INCLUDES) $(LIBS)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) $(LIBS) -o $@
@@ -19,7 +19,7 @@ proc: proc.c $(INCLUDES) $(LIBS)
 tests: tests.c bits.o bits.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) $< $(LDFLAGS) bits.o -o $@
 
-.PHONY: modules clean run-tests
+.PHONY: modules clean test
 FORCE:
 
 modules: $(INCLUDES) $(LIBS)
@@ -32,7 +32,7 @@ clean:
 	-rm $(LIBS) horde net proc
 	$(MAKE) -C modules clean
 
-run-tests: tests horde net proc modules FORCE
+test: tests horde net proc modules FORCE
 	./tests
 
 version.h: FORCE
