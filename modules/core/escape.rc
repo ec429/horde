@@ -7,4 +7,12 @@
 	(/ &#x2F;) \
 	html)
 
+(add \
+	(& &amp;) \
+	(< &lt;) \
+	(> &gt;) \
+	(" &quot;) \
+	(' &#x27;) \
+	html-ns)
+
 (default html)

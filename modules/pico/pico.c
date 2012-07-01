@@ -230,6 +230,7 @@ char *picofy(const hmsg h, hstate *hst)
 								free(pd);
 								free_hmsg(ph);
 							}
+							free(fn);
 						}
 					}
 				}
@@ -260,6 +261,7 @@ char *picofy(const hmsg h, hstate *hst)
 									append_char(&rv, &l, &i, pfd[o]);
 								free(pfd);
 							}
+							free(fn);
 						}
 					}
 				}
@@ -352,7 +354,7 @@ char *picofy(const hmsg h, hstate *hst)
 					if(rqpath)
 					{
 						hmsg u=new_hmsg("escape", rqpath);
-						add_htag(u, "map", "html");
+						add_htag(u, "map", "html-ns");
 						hsend(1, u);
 						while(!hst->shutdown)
 						{
@@ -387,7 +389,7 @@ char *picofy(const hmsg h, hstate *hst)
 					if(p)
 					{
 						hmsg u=new_hmsg("escape", p);
-						add_htag(u, "map", "html");
+						add_htag(u, "map", "html-ns");
 						hsend(1, u);
 						while(!hst->shutdown)
 						{
