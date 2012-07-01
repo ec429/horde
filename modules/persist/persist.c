@@ -25,10 +25,10 @@
 #define T_FLOAT	0xF0
 
 #define SZ_CONS		9
-#define SZ_U8		1
-#define SZ_U16		2
-#define SZ_U32		4
-#define SZ_FLOAT	4
+#define SZ_U8		2
+#define SZ_U16		3
+#define SZ_U32		5
+#define SZ_FLOAT	5
 
 int write8(int fd, off_t addr, uint8_t val);
 int write32(int fd, off_t addr, uint32_t val);
@@ -119,7 +119,7 @@ int dbinit(int dbfd)
 	}
 	if(lseek(dbfd, 0, SEEK_CUR)!=26)
 	{
-		fprintf(stderr, "persist: dbinit: offset not 17 after writing, something bad happened\n");
+		fprintf(stderr, "persist: dbinit: offset not 26 after writing, something bad happened\n");
 		flock(dbfd, LOCK_UN);
 		return(1);
 	}
@@ -290,25 +290,25 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 	switch(type&TYPEMASK)
 	{
 		case T_CONS:
-			sz=9;
+			sz=SZ_CONS;
 		break;
 		case T_U8:
-			sz=1;
+			sz=SZ_U8;
 		break;
 		case T_U16:
-			sz=2;
+			sz=SZ_U16;
 		break;
 		case T_U32:
-			sz=4;
+			sz=SZ_U32;
 		break;
 		case T_BYTES:
 			sz=0;
 		break;
 		case T_CSTR:
-			sz=data?strlen((const char *)data)+1:1;
+			sz=data?strlen((const char *)data)+2:2;
 		break;
 		case T_FLOAT:
-			sz=4;
+			sz=SZ_FLOAT;
 		break;
 	}
 	if(!sz)
@@ -414,8 +414,17 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 			return(0);
 		}
 	while(name[i++]);
-	for(i=0;i<sz;i++)
-		if(write8(dbfd, addr+i, data[i]))
+	if(write8(dbfd, addr, type))
+	{
+		fprintf(stderr, "persist: db_store: failed to write out type\n");
+		//db_free(dbfd, addr);
+		//db_free(dbfd, nameaddr);
+		//db_free(dbfd, namecar);
+		//db_free(dbfd, nameent);
+		return(0);
+	}
+	for(i=1;i<sz;i++)
+		if(write8(dbfd, addr+i, data[i-1]))
 		{
 			fprintf(stderr, "persist: db_store: failed to write out data\n");
 			//db_free(dbfd, addr);
