@@ -873,7 +873,7 @@ int handle_workers(__attribute__((unused)) hmsg h, int fd)
 	char *buf; size_t l, i;
 	init_char(&buf, &l, &i);
 	char line[80];
-	snprintf(line, 80, "horde: workers (%u)\n", nworkers);
+	snprintf(line, 80, "horde:\t%u workers\n", nworkers);
 	append_str(&buf, &l, &i, line);
 	unsigned int w;
 	for(w=0;w<nworkers;w++)
