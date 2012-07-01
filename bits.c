@@ -25,11 +25,17 @@ char * getl(int fd)
 	unsigned int l,i;
 	init_char(&lout, &l, &i);
 	unsigned char c;
-	while(read(fd, &c, 1)==1)
+	int e;
+	while((e=read(fd, &c, 1))==1)
 	{
 		if(c=='\n')
 			break;
 		append_char(&lout, &l, &i, c);
+	}
+	if(e==-1)
+	{
+		free(lout);
+		return(NULL);
 	}
 	return(lout);
 }
