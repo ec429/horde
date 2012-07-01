@@ -1,1 +1,1 @@
-sudo ./horde --root=/var/www --uid=`id -u horde` --gid=`id -g horde` "$@"
+sudo su -s /bin/bash -c "./horde --root=/var/www $@" horde
