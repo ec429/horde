@@ -10,13 +10,13 @@ Requests might be something like one of the following:
 	(persist (file mydb.per) (append) (name Thesaurus) \["big" "great" "gigantic" "massive"\])
 		Appends ("big" "great" "gigantic" "massive") to the list Thesaurus
 	(persist (file mydb.per) (lookup) (name Thesaurus[0][3]))
-		Returns (cdddar (car Thesaurus))
+		Returns (cadddr (car Thesaurus))
 	(persist (file mydb.per) (insert) (name Thesaurus[0][1]) "large")
-		Inserts "large" into (car Thesaurus), between its car and its cdar
+		Inserts "large" into (car Thesaurus), between its car and its cadr
 	(persist (file mydb.per) (delete) (name Thesaurus[0][3]))
-		Deletes (cdddar (car Thesaurus))
+		Deletes (cadddr (car Thesaurus))
 	(persist (file mydb.per) (replace) (name Thesaurus[0][2]) "huge")
-		Replaces (cddar (car Thesaurus)) with "huge"
+		Replaces (caddr (car Thesaurus)) with "huge"
 After all five of these, assuming Thesaurus started out empty, it will contain (("big" "large" "huge" "massive")).
 In fact it won't be quite like that, since (probably, anyway) you won't be able to pass a list as data, so the first request (the append) would have to be split into four appends to Thesaurus[0].
 

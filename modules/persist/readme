@@ -1,0 +1,12 @@
+persist: current status
+
+High level:
+>	CRUD
+	hmsg protocol
+	Tests
+
+CRUD:
+	Create (db_store())
+>	Retrieve
+	Update (should also be handled by db_store())
+	Delete

@@ -24,6 +24,12 @@
 #define T_CSTR	0xC0
 #define T_FLOAT	0xF0
 
+#define SZ_CONS		9
+#define SZ_U8		1
+#define SZ_U16		2
+#define SZ_U32		4
+#define SZ_FLOAT	4
+
 int write8(int fd, off_t addr, uint8_t val);
 int write32(int fd, off_t addr, uint32_t val);
 int writecons(int fd, off_t addr, uint32_t car, uint32_t cdr);
@@ -310,83 +316,113 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 		fprintf(stderr, "persist: db_store: unknown size\n");
 		return(0);
 	}
-	uint32_t nameent, namecar, namecdr;
-	if(read32(dbfd, 4, &nameent))
+	uint32_t namehead;
+	if(read32(dbfd, 4, &namehead))
+	{
+		fprintf(stderr, "persist: db_store: failed to read namehead at 0x4\n");
 		return(0);
+	}
+	uint32_t nameptr=namehead, namecar, namecdr, oldptr=0;
+	while(nameptr)
+	{
+		if(readcons(dbfd, nameptr, &namecar, &namecdr))
+		{
+			fprintf(stderr, "persist: db_store: failed to read namelist cons at 0x%08x\n", nameptr);
+			return(0);
+		}
+		uint32_t namecaar, namecdar;
+		if(readcons(dbfd, namecar, &namecaar, &namecdar))
+		{
+			fprintf(stderr, "persist: db_store: failed to read namelist entry at 0x%08x\n", namecar);
+			return(0);
+		}
+		/*
+			TODO: read CSTRING from namecdar, and compare it to name; if a match, overwrite
+		*/
+		oldptr=nameptr;
+		nameptr=namecdr;
+	}
+	uint32_t nameent=db_alloc(dbfd, SZ_CONS);
 	if(!nameent)
 	{
-		if(!(nameent=db_alloc(dbfd, 9)))
+		fprintf(stderr, "persist: db_store: failed to allocate space for new nameent\n");
+		return(0);
+	}
+	if(!namehead)
+	{
+		if(write32(dbfd, 4, namehead=nameent))
 		{
-			fprintf(stderr, "persist: db_store: failed to create namelist\n");
+			fprintf(stderr, "persist: db_store: failed to write namehead at 0x4\n");
+			//db_free(dbfd, nameent);
 			return(0);
 		}
-		if(write32(dbfd, 4, nameent))
-		{
-			fprintf(stderr, "persist: db_store: failed to write namelist addr\n");
-			// TODO db_free nameent
-			return(0);
-		}
-		if(!(namecar=db_alloc(dbfd, 9)))
-		{
-			fprintf(stderr, "persist: db_store: failed to allocate namecar\n");
-			// TODO db_free nameent
-			return(0);
-		}
-		namecdr=0;
-		if(writecons(dbfd, nameent, namecar, namecdr))
-		{
-			fprintf(stderr, "persist: db_store: failed to write namelist\n");
-			// TODO db_free nameent
-			return(0);
-		}
+	}
+	else if(!oldptr)
+	{
+		fprintf(stderr, "persist: db_store: internal error (oldptr==NULL)\n");
+		//db_free(dbfd, nameent);
+		return(0);
 	}
 	else
 	{
-		fprintf(stderr, "persist: db_store: namelist iter not done yet\n");
+		if(writecons(dbfd, oldptr, namecar, nameent))
+		{
+			fprintf(stderr, "persist: db_store: failed to write to oldptr\n");
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+	}
+	if(!(namecar=db_alloc(dbfd, SZ_CONS)))
+	{
+		fprintf(stderr, "persist: db_store: failed to allocate space for new namecar\n");
+		//db_free(dbfd, nameent);
 		return(0);
 	}
-	size_t namelen=1+strlen(name);
-	uint32_t namecaar, namecdar;
-	if(!(namecaar=db_alloc(dbfd, namelen)))
+	if(writecons(dbfd, nameent, namecar, 0))
+	{
+		fprintf(stderr, "persist: db_store: failed to write to nameent\n");
+		//db_free(dbfd, namecar);
+		//db_free(dbfd, nameent);
+		return(0);
+	}
+	uint32_t nameaddr=db_alloc(dbfd, strlen(name)+1);
+	if(!nameaddr)
 	{
 		fprintf(stderr, "persist: db_store: failed to allocate space for name\n");
+		//db_free(dbfd, namecar);
+		//db_free(dbfd, nameent);
 		return(0);
 	}
-	if(!(namecdar=db_alloc(dbfd, sz)))
+	uint32_t addr=db_alloc(dbfd, sz);
+	if(!addr)
 	{
-		fprintf(stderr, "persist: db_store: failed to allocate space for value\n");
+		fprintf(stderr, "persist: db_store: failed to allocate space for data\n");
+		//db_free(dbfd, nameaddr);
+		//db_free(dbfd, namecar);
+		//db_free(dbfd, nameent);
 		return(0);
 	}
-	if(writecons(dbfd, namecar, namecaar, namecdar))
-	{
-		fprintf(stderr, "persist: db_store: failed to write nameent\n");
-		return(0);
-	}
-	if(write8(dbfd, namecaar, T_CSTR))
-	{
-		fprintf(stderr, "persist: db_store: failed to write name\n");
-		return(0);
-	}
-	ssize_t b=write(dbfd, name, namelen);
-	if(b<(ssize_t)namelen)
-	{
-		fprintf(stderr, "persist: db_store: failed to write name\n");
-		if(b<0)
-			perror("\twrite");
-		return(0);
-	}
-	if(write8(dbfd, namecdar, type))
-	{
-		fprintf(stderr, "persist: db_store: failed to write value\n");
-		return(0);
-	}
-	b=write(dbfd, data, sz);
-	if(b<(ssize_t)sz)
-	{
-		fprintf(stderr, "persist: db_store: failed to write value\n");
-		if(b<0)
-			perror("\twrite");
-		return(0);
-	}
-	return(namecdar);
+	size_t i=0;
+	do
+		if(write8(dbfd, nameaddr+i, name[i]))
+		{
+			fprintf(stderr, "persist: db_store: failed to write out name\n");
+			//db_free(dbfd, addr);
+			//db_free(dbfd, nameaddr);
+			//db_free(dbfd, namecar);
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+	while(name[i++]);
+	for(i=0;i<sz;i++)
+		if(write8(dbfd, addr+i, data[i]))
+		{
+			fprintf(stderr, "persist: db_store: failed to write out data\n");
+			//db_free(dbfd, addr);
+			//db_free(dbfd, nameaddr);
+			//db_free(dbfd, namecar);
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+	return(addr);
 }
