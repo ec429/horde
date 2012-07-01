@@ -1,12 +1,14 @@
 persist: current status
 
+'*' = Done; '>' = next job / in progress
+
 High level:
 >	CRUD
 	hmsg protocol
 	Tests
 
 CRUD:
-	Create (db_store())
+*	Create (db_store())
 >	Retrieve
 	Update (should also be handled by db_store())
 	Delete

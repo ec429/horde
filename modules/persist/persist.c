@@ -36,9 +36,10 @@ int writecons(int fd, off_t addr, uint32_t car, uint32_t cdr);
 int read8(int fd, off_t addr, uint8_t *val);
 int read32(int fd, off_t addr, uint32_t *val);
 int readcons(int fd, off_t addr, uint32_t *car, uint32_t *cdr);
-int dbinit(int dbfd);
-uint32_t db_alloc(int dbfd, size_t sz);
+int db_init(int dbfd);
+uint32_t db_alloc(int dbfd, size_t sz); // returns allocated address
 uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data); // returns address of stored value
+uint32_t name_lookup(int dbfd, const char *name); // returns address of namecar (whose car is object, cdr is name)
 
 int main(void)
 {
@@ -55,7 +56,7 @@ int main(void)
 			}
 			else
 			{
-				if(dbinit(dbfd))
+				if(db_init(dbfd))
 				{
 					fprintf(stderr, "persist: failed to initialise db\n");
 					return(1);
@@ -85,11 +86,11 @@ int main(void)
 	return(0);
 }
 
-int dbinit(int dbfd)
+int db_init(int dbfd)
 {
 	if(flock(dbfd, LOCK_EX))
 	{
-		perror("persist: dbinit: flock");
+		perror("persist: db_init: flock");
 		close(dbfd);
 		return(1);
 	}
@@ -119,7 +120,7 @@ int dbinit(int dbfd)
 	}
 	if(lseek(dbfd, 0, SEEK_CUR)!=26)
 	{
-		fprintf(stderr, "persist: dbinit: offset not 26 after writing, something bad happened\n");
+		fprintf(stderr, "persist: db_init: offset not 26 after writing, something bad happened\n");
 		flock(dbfd, LOCK_UN);
 		return(1);
 	}
