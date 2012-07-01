@@ -87,7 +87,7 @@ int rcread(const char *fn);
 
 int handle(const char *inp, const char *file);
 int handle_add(const hmsg h);
-int handle_workers(hmsg h);
+int handle_workers(hmsg h, int fd);
 
 void uptime_respond(unsigned int w, hmsg h, time_t upsince);
 
@@ -454,6 +454,11 @@ int main(int argc, char **argv)
 										}
 										else if(strcmp(h->funct, "uptime")==0)
 											uptime_respond(w, h, upsince);
+										
+										else if(strcmp(h->funct, "workers")==0)
+										{
+											handle_workers(h, workers[w].pipe[1]);
+										}
 										else if(strcmp(h->funct, "tail")==0)
 										{
 											char *from=malloc(16+strlen(workers[w].name));
@@ -667,7 +672,7 @@ int handle(const char *inp, const char *file)
 			e=handle_add(h);
 		else if(strcmp(h->funct, "workers")==0)
 		{
-			e=handle_workers(h);
+			e=handle_workers(h, STDERR_FILENO);
 		}
 		else if(strcmp(h->funct, "shutdown")==0)
 		{
@@ -852,9 +857,13 @@ int handle_add(const hmsg h)
 	return(0);
 }
 
-int handle_workers(__attribute__((unused)) hmsg h)
+int handle_workers(__attribute__((unused)) hmsg h, int fd)
 {
-	fprintf(stderr, "horde: workers (%u)\n", nworkers);
+	char *buf; size_t l, i;
+	init_char(&buf, &l, &i);
+	char line[80];
+	snprintf(line, 80, "horde: workers (%u)\n", nworkers);
+	append_str(&buf, &l, &i, line);
 	unsigned int w;
 	for(w=0;w<nworkers;w++)
 	{
@@ -863,10 +872,21 @@ int handle_workers(__attribute__((unused)) hmsg h)
 		name[12]=0;
 		memcpy(name, workers[w].name, strlen(workers[w].name));
 		unsigned int m=workers[w].n_rqs?workers[w].t_micro*1e-3/workers[w].n_rqs:0;
-		fprintf(stderr, "horde:\t%s%.12s[%05u]%s:: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].n_rqs, m);
+		snprintf(line, 80, "horde:\t%s%.12s[%05u]%s:: %u rq, mean %03ums\n", workers[w].accepting?"+":"-", name, workers[w].pid, workers[w].autoreplace?"*":" ", workers[w].n_rqs, m);
+		append_str(&buf, &l, &i, line);
 	}
 	unsigned int m=net_rqs?net_micro*1e-3/net_rqs:0;
-	fprintf(stderr, "horde:\t net         [     ] :: %lu rq, mean %03ums\n", net_rqs, m);
+	snprintf(line, 80, "horde:\t net         [     ] :: %lu rq, mean %03ums\n", net_rqs, m);
+	append_str(&buf, &l, &i, line);
+	if(fd<3)
+		write(fd, buf, i+1);
+	else
+	{
+		hmsg r=new_hmsg("workers", buf);
+		hsend(fd, r);
+		free_hmsg(r);
+	}
+	free(buf);
 	return(0);
 }
 
