@@ -384,6 +384,17 @@ int main(int argc, char **argv)
 							if(buf)
 							{
 								if(transcript) fprintf(stderr, "horde: < '%s'\n", buf);
+								if(!*buf)
+								{
+									fprintf(stderr, "horde: worker %s[%d] EOFed unexpectedly\n", workers[w].name, workers[w].pid);
+									rmworker(w);
+									if(worker_set(&fdmax, &master))
+									{
+										fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
+									}
+									free(buf);
+									break;
+								}
 								hmsg h=hmsg_from_str(buf, false);
 								if(h)
 								{
@@ -538,7 +549,7 @@ int main(int argc, char **argv)
 									fprintf(stderr, "horde: worker_set failed, bad things may happen\n");
 								}
 							}
-							if(buf) free(buf);
+							free(buf);
 						break;
 					}
 				}
