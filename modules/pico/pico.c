@@ -295,7 +295,7 @@ char *picofy(const hmsg h, hstate *hst)
 							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
 							if(!*inp) {free(inp);continue;}
 							hmsg h=hmsg_from_str(inp, true);
-							if(!hmsg_state(h, hst))
+							if(h&&!hmsg_state(h, hst))
 							{
 								if(strcmp(h->funct, "escape")==0)
 								{
@@ -328,7 +328,7 @@ char *picofy(const hmsg h, hstate *hst)
 						if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
 						if(!*inp) {free(inp);continue;}
 						hmsg h=hmsg_from_str(inp, true);
-						if(!hmsg_state(h, hst))
+						if(h&&!hmsg_state(h, hst))
 						{
 							if(strcmp(h->funct, "uptime")==0)
 							{
@@ -360,7 +360,7 @@ char *picofy(const hmsg h, hstate *hst)
 							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
 							if(!*inp) {free(inp);continue;}
 							hmsg h=hmsg_from_str(inp, true);
-							if(!hmsg_state(h, hst))
+							if(h&&!hmsg_state(h, hst))
 							{
 								if(strcmp(h->funct, "escape")==0)
 								{
@@ -395,7 +395,7 @@ char *picofy(const hmsg h, hstate *hst)
 							if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
 							if(!*inp) {free(inp);continue;}
 							hmsg h=hmsg_from_str(inp, true);
-							if(!hmsg_state(h, hst))
+							if(h&&!hmsg_state(h, hst))
 							{
 								if(strcmp(h->funct, "escape")==0)
 								{
@@ -435,11 +435,51 @@ char *picofy(const hmsg h, hstate *hst)
 						if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
 						if(!*inp) {free(inp);continue;}
 						hmsg h=hmsg_from_str(inp, true);
-						if(!hmsg_state(h, hst))
+						if(h&&!hmsg_state(h, hst))
 						{
 							if(strcmp(h->funct, "stats")==0)
 							{
 								append_str(&rv, &l, &i, h->data);
+								break;
+							}
+							else if(strcmp(h->funct, "err")==0)
+							{
+								append_str(&rv, &l, &i, "[error]");
+								break;
+							}
+						}
+						free_hmsg(h);
+						free(inp);
+					}
+					if(hst->shutdown)
+						exit(EXIT_FAILURE);
+				}
+				else if(strcmp(d, "system")==0)
+				{
+					hmsg u=new_hmsg("workers", NULL);
+					hsend(1, u);
+					while(!hst->shutdown)
+					{
+						char *inp=getl(STDIN_FILENO);
+						if(!inp) {append_str(&rv, &l, &i, "[error]");break;}
+						if(!*inp) {free(inp);continue;}
+						hmsg h=hmsg_from_str(inp, true);
+						if(h&&!hmsg_state(h, hst))
+						{
+							if(strcmp(h->funct, "workers")==0)
+							{
+								if(h->data)
+								{
+									const char *p=h->data;
+									while(p&&*p)
+									{
+										if(*p=='\n')
+											append_str(&rv, &l, &i, "<br />\n");
+										else
+											append_char(&rv, &l, &i, *p);
+										p++;
+									}
+								}
 								break;
 							}
 							else if(strcmp(h->funct, "err")==0)
