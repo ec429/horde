@@ -359,7 +359,7 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 			fprintf(stderr, "persist: db_store: failed to read namelist entry at 0x%08x\n", namecar);
 			return(0);
 		}
-		char *buf=readcstr(namecaar);
+		char *buf=readcstr(dbfd, namecaar);
 		if(strcmp(name, buf)==0)
 		{
 			free(buf);
@@ -457,7 +457,7 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 		//db_free(dbfd, nameent);
 		return(0);
 	}
-	for(i=1;i<sz;i++)
+	for(size_t i=1;i<sz;i++)
 		if(write8(dbfd, addr+i, data[i-1]))
 		{
 			fprintf(stderr, "persist: db_store: failed to write out data\n");
@@ -499,7 +499,7 @@ uint32_t name_lookup(int dbfd, const char *name)
 			fprintf(stderr, "persist: name_lookup: failed to read namelist entry at 0x%08x\n", namecar);
 			return(0);
 		}
-		char *buf=readcstr(namecaar);
+		char *buf=readcstr(dbfd, namecaar);
 		if(strcmp(name, buf)==0)
 		{
 			free(buf);
