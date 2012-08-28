@@ -174,6 +174,7 @@ int main(int argc, char **argv)
 		http_method m=get_method(method);
 		switch(m)
 		{
+			case HTTP_METHOD_HEAD:
 			case HTTP_METHOD_GET:
 				if(*uri!='/')
 				{
@@ -261,6 +262,7 @@ int main(int argc, char **argv)
 		}
 		switch(m)
 		{
+			case HTTP_METHOD_HEAD:
 			case HTTP_METHOD_GET:;
 				if(hst.debug) fprintf(stderr, "horde: %s[%d]: handling GET request (%s) (%u headers)\n", hst.name, getpid(), uri, nhdrs);
 				char *rpath=normalise_path(uri);
@@ -288,6 +290,17 @@ int main(int argc, char **argv)
 					{
 						if(hst.debug) fprintf(stderr, "horde: %s[%d]: ign - allocation failure (char *hline): malloc: %s\n", hst.name, getpid(), strerror(errno));
 					}
+				}
+				switch(m)
+				{
+					case HTTP_METHOD_HEAD:
+						add_htag(p, "method", "HEAD");
+					break;
+					case HTTP_METHOD_GET:
+						add_htag(p, "method", "GET");
+					break;
+					default:
+					break;
 				}
 				hsend(1, p);
 				free_hmsg(p);
@@ -438,49 +451,52 @@ int main(int argc, char **argv)
 					hfin(EXIT_FAILURE);
 					return(EXIT_FAILURE);
 				}
-				if(h->data) // otherwise assume status does not require one
+				if(!(m==HTTP_METHOD_HEAD))
 				{
-					n=sendall(newhandle, h->data, h->dlen, 0);
-					if(n)
+					if(h->data) // otherwise assume status does not require one
 					{
-						if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", hst.name, getpid(), n, strerror(errno));
-						close(newhandle);
-						hfin(EXIT_FAILURE);
-						return(EXIT_FAILURE);
-					}
-				}
-				hmsg l=new_hmsg("tail", NULL);
-				char st[TL_SHORT], sz[TL_SIZET];
-				const char *ctype=NULL;
-				snprintf(st, sizeof(st), "%hu", status);
-				add_htag(l, "status", st);
-				snprintf(sz, sizeof(sz), "%zu", h->dlen);
-				add_htag(l, "bytes", sz);
-				if(rpath) add_htag(l, "rpath", rpath);
-				for(i=0;i<h->nparms;i++)
-				{
-					if(strcmp(h->p_tag[i], "header")==0)
-					{
-						if(strncmp(h->p_value[i], "Content-Type: ", 14)==0)
+						n=sendall(newhandle, h->data, h->dlen, 0);
+						if(n)
 						{
-							ctype=h->p_value[i]+14;
-							break;
+							if(hst.debug) fprintf(stderr, "horde: %s[%d]: 499 - sendall(body) failed, %zd; %s\n", hst.name, getpid(), n, strerror(errno));
+							close(newhandle);
+							hfin(EXIT_FAILURE);
+							return(EXIT_FAILURE);
 						}
 					}
+					hmsg l=new_hmsg("tail", NULL);
+					char st[TL_SHORT], sz[TL_SIZET];
+					const char *ctype=NULL;
+					snprintf(st, sizeof(st), "%hu", status);
+					add_htag(l, "status", st);
+					snprintf(sz, sizeof(sz), "%zu", h->dlen);
+					add_htag(l, "bytes", sz);
+					if(rpath) add_htag(l, "rpath", rpath);
+					for(i=0;i<h->nparms;i++)
+					{
+						if(strcmp(h->p_tag[i], "header")==0)
+						{
+							if(strncmp(h->p_value[i], "Content-Type: ", 14)==0)
+							{
+								ctype=h->p_value[i]+14;
+								break;
+							}
+						}
+					}
+					if(ctype) add_htag(l, "ctype", ctype);
+					if(ip) add_htag(l, "ip", ip);
+					add_htag(l, "method", "GET");
+					if(ref) add_htag(l, "referrer", ref);
+					if(ua) add_htag(l, "user-agent", ua);
+					add_htag(l, "date", date);
+					gettimeofday(&endtime, NULL);
+					double dt=difftime(endtime.tv_sec, starttime.tv_sec)+(endtime.tv_usec-starttime.tv_usec)*1e-6;
+					char sdt[16];
+					snprintf(sdt, sizeof(sdt), "%.6g", dt);
+					add_htag(l, "time", sdt); // this is 'total processing time'
+					hsend(1, l);
+					free_hmsg(l);
 				}
-				if(ctype) add_htag(l, "ctype", ctype);
-				if(ip) add_htag(l, "ip", ip);
-				add_htag(l, "method", "GET");
-				if(ref) add_htag(l, "referrer", ref);
-				if(ua) add_htag(l, "user-agent", ua);
-				add_htag(l, "date", date);
-				gettimeofday(&endtime, NULL);
-				double dt=difftime(endtime.tv_sec, starttime.tv_sec)+(endtime.tv_usec-starttime.tv_usec)*1e-6;
-				char sdt[16];
-				snprintf(sdt, sizeof(sdt), "%.6g", dt);
-				add_htag(l, "time", sdt); // this is 'total processing time'
-				hsend(1, l);
-				free_hmsg(l);
 				free_hmsg(h);
 				free(rpath);
 			break;
