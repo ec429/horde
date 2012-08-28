@@ -1,0 +1,15 @@
+$ CRUD test
+# Tests the main CRUD methods
+< (persist (file modules/persist/persist.tests/test.pdb) (delete) (name Test))
+< (persist (file modules/persist/persist.tests/test.pdb) (append) (name Test) "foo")
+< (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test))
+> (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test) \["foo"\])
+< (persist (file modules/persist/persist.tests/test.pdb) (insert) (name Test) "bar")
+< (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test[0]))
+> (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test[0]) "bar")
+< (persist (file modules/persist/persist.tests/test.pdb) (replace) (name Test) 42)
+< (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test))
+> (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test) 42)
+< (persist (file modules/persist/persist.tests/test.pdb) (delete) (name Test))
+< (persist (file modules/persist/persist.tests/test.pdb) (lookup) (name Test))
+> (err (what value-not-found) persist \[file modules/persist/persist.tests/test.pdb\] \[lookup\] \[name Test\]\])

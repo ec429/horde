@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include "bits.h"
 
 /*
 	WARNINGS
@@ -36,6 +37,7 @@ int writecons(int fd, off_t addr, uint32_t car, uint32_t cdr);
 int read8(int fd, off_t addr, uint8_t *val);
 int read32(int fd, off_t addr, uint32_t *val);
 int readcons(int fd, off_t addr, uint32_t *car, uint32_t *cdr);
+char *readcstr(int dbfd, uint32_t addr);
 int db_init(int dbfd);
 uint32_t db_alloc(int dbfd, size_t sz); // returns allocated address
 uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data); // returns address of stored value
@@ -243,6 +245,26 @@ int readcons(int fd, off_t addr, uint32_t *car, uint32_t *cdr)
 	return(0);
 }
 
+char *readcstr(int dbfd, uint32_t addr)
+{
+	char *buf; size_t l,i;
+	init_char(&buf, &l, &i);
+	uint8_t b;
+	do
+	{
+		if(read8(dbfd, addr, &b))
+		{
+			fprintf(stderr, "persist: readcstr: failed to read byte at 0x%08x\n", addr);
+			free(buf);
+			return(NULL);
+		}
+		append_char(&buf, &l, &i, (char)b);
+		addr++;
+	}
+	while(b);
+	return(buf);
+}
+
 uint32_t db_alloc(int dbfd, size_t sz)
 {
 	uint32_t freeent, freecar, freecdr;
@@ -337,62 +359,85 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 			fprintf(stderr, "persist: db_store: failed to read namelist entry at 0x%08x\n", namecar);
 			return(0);
 		}
-		/*
-			TODO: read CSTRING from namecdar, and compare it to name; if a match, overwrite
-		*/
+		char *buf=readcstr(namecaar);
+		if(strcmp(name, buf)==0)
+		{
+			free(buf);
+			break;
+		}
+		free(buf);
 		oldptr=nameptr;
 		nameptr=namecdr;
 	}
-	uint32_t nameent=db_alloc(dbfd, SZ_CONS);
-	if(!nameent)
+	if(namecar)
 	{
-		fprintf(stderr, "persist: db_store: failed to allocate space for new nameent\n");
-		return(0);
-	}
-	if(!namehead)
-	{
-		if(write32(dbfd, 4, namehead=nameent))
-		{
-			fprintf(stderr, "persist: db_store: failed to write namehead at 0x4\n");
-			//db_free(dbfd, nameent);
-			return(0);
-		}
-	}
-	else if(!oldptr)
-	{
-		fprintf(stderr, "persist: db_store: internal error (oldptr==NULL)\n");
-		//db_free(dbfd, nameent);
-		return(0);
+		
 	}
 	else
 	{
-		if(writecons(dbfd, oldptr, namecar, nameent))
+		uint32_t nameent=db_alloc(dbfd, SZ_CONS);
+		if(!nameent)
 		{
-			fprintf(stderr, "persist: db_store: failed to write to oldptr\n");
+			fprintf(stderr, "persist: db_store: failed to allocate space for new nameent\n");
+			return(0);
+		}
+		if(!namehead)
+		{
+			if(write32(dbfd, 4, namehead=nameent))
+			{
+				fprintf(stderr, "persist: db_store: failed to write namehead at 0x4\n");
+				//db_free(dbfd, nameent);
+				return(0);
+			}
+		}
+		else if(!oldptr)
+		{
+			fprintf(stderr, "persist: db_store: internal error (oldptr==NULL)\n");
 			//db_free(dbfd, nameent);
 			return(0);
 		}
-	}
-	if(!(namecar=db_alloc(dbfd, SZ_CONS)))
-	{
-		fprintf(stderr, "persist: db_store: failed to allocate space for new namecar\n");
-		//db_free(dbfd, nameent);
-		return(0);
-	}
-	if(writecons(dbfd, nameent, namecar, 0))
-	{
-		fprintf(stderr, "persist: db_store: failed to write to nameent\n");
-		//db_free(dbfd, namecar);
-		//db_free(dbfd, nameent);
-		return(0);
-	}
-	uint32_t nameaddr=db_alloc(dbfd, strlen(name)+1);
-	if(!nameaddr)
-	{
-		fprintf(stderr, "persist: db_store: failed to allocate space for name\n");
-		//db_free(dbfd, namecar);
-		//db_free(dbfd, nameent);
-		return(0);
+		else
+		{
+			if(writecons(dbfd, oldptr, namecar, nameent))
+			{
+				fprintf(stderr, "persist: db_store: failed to write to oldptr\n");
+				//db_free(dbfd, nameent);
+				return(0);
+			}
+		}
+		if(!(namecar=db_alloc(dbfd, SZ_CONS)))
+		{
+			fprintf(stderr, "persist: db_store: failed to allocate space for new namecar\n");
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+		if(writecons(dbfd, nameent, namecar, 0))
+		{
+			fprintf(stderr, "persist: db_store: failed to write to nameent\n");
+			//db_free(dbfd, namecar);
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+		uint32_t nameaddr=db_alloc(dbfd, strlen(name)+1);
+		if(!nameaddr)
+		{
+			fprintf(stderr, "persist: db_store: failed to allocate space for name\n");
+			//db_free(dbfd, namecar);
+			//db_free(dbfd, nameent);
+			return(0);
+		}
+		size_t i=0;
+		do
+			if(write8(dbfd, nameaddr+i, name[i]))
+			{
+				fprintf(stderr, "persist: db_store: failed to write out name\n");
+				//db_free(dbfd, addr);
+				//db_free(dbfd, nameaddr);
+				//db_free(dbfd, namecar);
+				//db_free(dbfd, nameent);
+				return(0);
+			}
+		while(name[i++]);
 	}
 	uint32_t addr=db_alloc(dbfd, sz);
 	if(!addr)
@@ -403,18 +448,6 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 		//db_free(dbfd, nameent);
 		return(0);
 	}
-	size_t i=0;
-	do
-		if(write8(dbfd, nameaddr+i, name[i]))
-		{
-			fprintf(stderr, "persist: db_store: failed to write out name\n");
-			//db_free(dbfd, addr);
-			//db_free(dbfd, nameaddr);
-			//db_free(dbfd, namecar);
-			//db_free(dbfd, nameent);
-			return(0);
-		}
-	while(name[i++]);
 	if(write8(dbfd, addr, type))
 	{
 		fprintf(stderr, "persist: db_store: failed to write out type\n");
@@ -434,5 +467,47 @@ uint32_t db_store(int dbfd, const char *name, uint8_t type, uint8_t *data)
 			//db_free(dbfd, nameent);
 			return(0);
 		}
+	if(writecons(dbfd, namecar, namecar, 0)) // XXX
+	{
+		fprintf(stderr, "persist: db_store: failed to write to nameent\n");
+		//db_free(dbfd, namecar);
+		//db_free(dbfd, nameent);
+		return(0);
+	}
 	return(addr);
+}
+
+uint32_t name_lookup(int dbfd, const char *name)
+{
+	uint32_t namehead;
+	if(read32(dbfd, 4, &namehead))
+	{
+		fprintf(stderr, "persist: name_lookup: failed to read namehead at 0x4\n");
+		return(0);
+	}
+	uint32_t nameptr=namehead, namecar, namecdr;
+	while(nameptr)
+	{
+		if(readcons(dbfd, nameptr, &namecar, &namecdr))
+		{
+			fprintf(stderr, "persist: name_lookup: failed to read namelist cons at 0x%08x\n", nameptr);
+			return(0);
+		}
+		uint32_t namecaar, namecdar;
+		if(readcons(dbfd, namecar, &namecaar, &namecdar))
+		{
+			fprintf(stderr, "persist: name_lookup: failed to read namelist entry at 0x%08x\n", namecar);
+			return(0);
+		}
+		char *buf=readcstr(namecaar);
+		if(strcmp(name, buf)==0)
+		{
+			free(buf);
+			return(namecar);
+		}
+		free(buf);
+		nameptr=namecdr;
+	}
+	// name not found
+	return(0);
 }
