@@ -159,7 +159,7 @@ char *picofy(const hmsg h, hstate *hst)
 		}
 	}
 	char *rv;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&rv, &l, &i);
 	char *d=strdup(h->data);
 	if(!d) return(NULL);

@@ -3,7 +3,7 @@
 char * fgetl(FILE *fp)
 {
 	char * lout;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&lout, &l, &i);
 	signed int c;
 	while(!feof(fp))
@@ -22,7 +22,7 @@ char * fgetl(FILE *fp)
 char * getl(int fd)
 {
 	char * lout;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&lout, &l, &i);
 	unsigned char c;
 	int e;
@@ -43,7 +43,7 @@ char * getl(int fd)
 char * slurp(FILE *fp)
 {
 	char * lout;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&lout, &l, &i);
 	signed int c;
 	while(!feof(fp))
@@ -63,7 +63,8 @@ ssize_t hslurp(FILE *fp, char **buf)
 {
 	if(!buf) return(-1);
 	char * lout;
-	unsigned int l,i,b=0;
+	size_t l,i;
+	size_t b=0;
 	init_char(&lout, &l, &i);
 	signed int c;
 	while(!feof(fp))
@@ -86,7 +87,7 @@ ssize_t dslurp(FILE *fp, char **buf)
 {
 	if(!buf) return(-1);
 	char * lout;
-	unsigned int l,i;
+	size_t l,i;
 	init_char(&lout, &l, &i);
 	signed int c;
 	while(!feof(fp))
@@ -200,7 +201,7 @@ void u_init_char(uchar_t **buf, size_t *l, size_t *i)
 uchar_t *u_strdup(const uchar_t *s)
 {
 	// inefficient approach, but who's counting?
-	uchar_t *buf; unsigned int l,i;
+	uchar_t *buf; size_t l,i;
 	u_init_char(&buf, &l, &i);
 	u_append_str(&buf, &l, &i, s);
 	return(buf);

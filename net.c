@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 	struct timeval starttime, endtime;
 	gettimeofday(&starttime, NULL);
 	while(check_msgs(&hst));
-	if(hst.debug) fprintf(stderr, "horde: %s[%d]: read %u bytes\n", hst.name, getpid(), bi);
+	if(hst.debug) fprintf(stderr, "horde: %s[%d]: read %zu bytes\n", hst.name, getpid(), bi);
 	char **line=malloc(bi*sizeof(char *));
 	char *next=buf, *last;
 	while(*next)
