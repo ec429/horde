@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 /*
 	horde: modular http server
-	Copyright (C) 2011 Edward Cree
+	Copyright (C) 2011-13 Edward Cree
 
 	Licensed under GNU GPLv3+; see top of horde.c for details
 	
@@ -15,6 +15,10 @@
 
 #include "bits.h"
 #include "libhorde.h"
+
+#define MULT_K	1024.0
+#define MULT_M	(MULT_K*MULT_K)
+#define MULT_G	(MULT_K*MULT_K*MULT_K)
 
 int handle(const char *inp);
 unsigned long pages_today[2]={0,0};
@@ -111,7 +115,7 @@ int handle(const char *inp)
 			}
 			else
 				fprintf(stderr, "horde: stats[%d]: ct,pa are NULL\n", getpid());
-			if(page&&(status!=404))
+			if(page&&((status/100)!=4))
 			{
 				pages_today[0]++;
 				if(nonlocal)
@@ -135,11 +139,11 @@ int handle(const char *inp)
 				if(bytes_today[0]<2<<10)
 					snprintf(rv, 12, "%zu", bytes_today[0]);
 				else if(bytes_today[0]<2<<19)
-					snprintf(rv, 12, "%1.2fk", bytes_today[0]/1024.0);
+					snprintf(rv, 12, "%1.2fk", bytes_today[0]/MULT_K);
 				else if(bytes_today[0]<2<<29)
-					snprintf(rv, 12, "%1.2fM", bytes_today[0]/1048576.0);
+					snprintf(rv, 12, "%1.2fM", bytes_today[0]/MULT_M);
 				else
-					snprintf(rv, 12, "%1.2fG", bytes_today[0]/1073741824.0);
+					snprintf(rv, 12, "%1.2fG", bytes_today[0]/MULT_G);
 				hmsg u=new_hmsg("stats", rv);
 				if(from) add_htag(u, "to", from);
 				hsend(1, u);
@@ -151,11 +155,11 @@ int handle(const char *inp)
 				if(bytes_today[1]<2<<10)
 					snprintf(rv, 12, "%zu", bytes_today[1]);
 				else if(bytes_today[1]<2<<19)
-					snprintf(rv, 12, "%1.2fk", bytes_today[1]/1024.0);
+					snprintf(rv, 12, "%1.2fk", bytes_today[1]/MULT_K);
 				else if(bytes_today[1]<2<<29)
-					snprintf(rv, 12, "%1.2fM", bytes_today[1]/1048576.0);
+					snprintf(rv, 12, "%1.2fM", bytes_today[1]/MULT_M);
 				else
-					snprintf(rv, 12, "%1.2fG", bytes_today[1]/1073741824.0);
+					snprintf(rv, 12, "%1.2fG", bytes_today[1]/MULT_G);
 				hmsg u=new_hmsg("stats", rv);
 				if(from) add_htag(u, "to", from);
 				hsend(1, u);
