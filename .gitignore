@@ -13,3 +13,4 @@ modules/persist/persist
 modules/persist/*.per
 modules/local
 version.h
+test.per
