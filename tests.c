@@ -40,6 +40,7 @@ test *tests;
 
 int main(void)
 {
+	signal(SIGPIPE, SIG_IGN);
 	if(rcreaddir("."))
 	{
 		fprintf(stderr, "tests: bad test, giving up\n");
@@ -64,13 +65,16 @@ int main(void)
 			{
 				fd_set readfds;
 				FD_SET(pipes[0], &readfds);
-				if(select(pipes[0]+1, &readfds, NULL, NULL, &(struct timeval){.tv_sec=4, .tv_usec=0})<0)
+				struct timeval tv={.tv_sec=4, .tv_usec=0};
+				do_select:
+				if(select(pipes[0]+1, &readfds, NULL, NULL, &tv)<0)
 				{
 					perror("tests: select");
 					return(EXIT_FAILURE);
 				}
 				if(!FD_ISSET(pipes[0], &readfds))
 				{
+					if(tv.tv_sec||tv.tv_usec) goto do_select;
 					fprintf(stderr, "tests: timeout in test '%s' at line %u\nexpected %s\n", t->name, l->sl, l->text);
 					haverr=true;
 					errs++;
