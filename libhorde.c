@@ -512,14 +512,21 @@ void hst_init(hstate *s, const char *name, bool pipeline)
 	s->host=strdup("[error]");
 	s->shutdown=false;
 	s->debug=false;
+	s->transcript=NULL;
 	s->pipeline=pipeline;
 }
 
 bool hmsg_state(hmsg h, hstate *s)
 {
 	if(!h) return(false);
-	if(!h->funct) return(false);
 	if(!s) return(false);
+	if(s->transcript)
+	{
+		char *sh=str_from_hmsg(h);
+		fprintf(s->transcript, "%s\n", sh);
+		free(sh);
+	}
+	if(!h->funct) return(false);
 	if(strcmp(h->funct, "shutdown")==0)
 	{
 		if(s->debug) fprintf(stderr, "horde: %s[%d]: server is shutting down\n", s->name, getpid());
@@ -543,6 +550,22 @@ bool hmsg_state(hmsg h, hstate *s)
 		}
 		else
 			s->debug=true;
+		return(true);
+	}
+	if(strcmp(h->funct, "transcript")==0)
+	{
+		if(h->data)
+		{
+			s->transcript=fopen(h->data, "w");
+			if(s->debug&&!s->transcript)
+				fprintf(stderr, "horde: %s[%d]: failed to open transcript file: %s\n", s->name, getpid(), strerror(errno));
+		}
+		else
+		{
+			if(s->transcript)
+				fclose(s->transcript);
+			s->transcript=NULL;
+		}
 		return(true);
 	}
 	if(strcmp(h->funct, "pipeline")==0)

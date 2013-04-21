@@ -41,6 +41,7 @@ typedef struct
 	char *root;
 	char *host;
 	bool debug;
+	FILE *transcript;
 	bool pipeline;
 	bool shutdown;
 }
