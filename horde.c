@@ -1061,6 +1061,12 @@ pid_t do_fork(const char *prog, const char *name, int rfd, unsigned int *w)
 				hsend(workers[ww].pipe[1], h);
 				free_hmsg(h);
 			}
+			h=new_hmsg("host", host);
+			if(h)
+			{
+				hsend(workers[ww].pipe[1], h);
+				free_hmsg(h);
+			}
 		break;
 	}
 	return(new.pid);
